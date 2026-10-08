@@ -1,0 +1,7 @@
+{
+  "name": "Beki's Studio",
+  "description": "Memories, beautifully preserved. A luxury digital memory platform for weddings, celebrations, and high-end events.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

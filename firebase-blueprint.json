@@ -1,0 +1,164 @@
+{
+  "entities": {
+    "Administrator": {
+      "title": "Administrator",
+      "description": "Authorized platform administrators with defined permission sets.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 120 },
+        "email": { "type": "string", "maxLength": 160 },
+        "normalizedEmail": { "type": "string", "maxLength": 160 },
+        "photoURL": { "type": "string", "maxLength": 500 },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN"] },
+        "status": { "type": "string", "enum": ["ACTIVE", "INACTIVE"] },
+        "permissions": { "type": "object" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "lastLoginAt": { "type": "string" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "lastLoginProvider": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "email", "normalizedEmail", "role", "status", "permissions"]
+    },
+    "Album": {
+      "title": "Album",
+      "description": "Event memory collections for weddings and high-end celebrations.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 160 },
+        "slug": { "type": "string", "maxLength": 120 },
+        "eventType": { "type": "string", "maxLength": 80 },
+        "eventDate": { "type": "string", "maxLength": 40 },
+        "location": { "type": "string", "maxLength": 160 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "welcomeMessage": { "type": "string", "maxLength": 1000 },
+        "coverMediaId": { "type": "string", "maxLength": 128 },
+        "coverImageUrl": { "type": "string", "maxLength": 1000 },
+        "status": { "type": "string", "enum": ["DRAFT", "UPLOADING", "READY", "PUBLISHED", "ARCHIVED"] },
+        "visibility": { "type": "string", "enum": ["PUBLIC", "UNLISTED", "PRIVATE"] },
+        "allowDownloads": { "type": "boolean" },
+        "downloadQuality": { "type": "string", "enum": ["WEB", "HIGH", "ORIGINAL"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "publishedAt": { "type": "string" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdByEmail": { "type": "string", "maxLength": 160 },
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "updatedByEmail": { "type": "string", "maxLength": 160 },
+        "theme": { "type": "string", "enum": ["default", "editorial", "dark", "romantic"] },
+        "customLogo": { "type": "string", "maxLength": 1000 },
+        "customFooter": { "type": "string", "maxLength": 500 },
+        "mediaCount": { "type": "number" },
+        "photoCount": { "type": "number" },
+        "videoCount": { "type": "number" }
+      },
+      "required": ["id", "title", "slug", "status", "visibility"]
+    },
+    "Media": {
+      "title": "Media",
+      "description": "High resolution photographs and video moments within an album.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "albumId": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "enum": ["PHOTO", "VIDEO"] },
+        "originalFileName": { "type": "string", "maxLength": 255 },
+        "storagePath": { "type": "string", "maxLength": 1000 },
+        "thumbnailPath": { "type": "string", "maxLength": 1000 },
+        "optimizedPath": { "type": "string", "maxLength": 1000 },
+        "mimeType": { "type": "string", "maxLength": 100 },
+        "fileSize": { "type": "number" },
+        "width": { "type": "number" },
+        "height": { "type": "number" },
+        "duration": { "type": "number" },
+        "sortOrder": { "type": "number" },
+        "sectionId": { "type": "string", "maxLength": 128 },
+        "uploadedBy": { "type": "string", "maxLength": 128 },
+        "uploadedByEmail": { "type": "string", "maxLength": 160 },
+        "uploadedAt": { "type": "string" },
+        "processingStatus": { "type": "string", "enum": ["UPLOADING", "PROCESSING", "READY", "FAILED"] },
+        "status": { "type": "string", "enum": ["ACTIVE", "DELETED"] },
+        "visibility": { "type": "string", "enum": ["PUBLIC", "PRIVATE"] },
+        "altText": { "type": "string", "maxLength": 300 }
+      },
+      "required": ["id", "albumId", "type", "storagePath", "status"]
+    },
+    "AlbumSection": {
+      "title": "AlbumSection",
+      "description": "Curated segments within an album such as Ceremony, Portraits, and Reception.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "albumId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 500 },
+        "sortOrder": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "albumId", "title"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Audit trails and action logging for administrative security.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "actorId": { "type": "string", "maxLength": 128 },
+        "actorName": { "type": "string", "maxLength": 120 },
+        "actorEmail": { "type": "string", "maxLength": 160 },
+        "actorRole": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN"] },
+        "action": { "type": "string", "maxLength": 80 },
+        "targetType": { "type": "string", "maxLength": 50 },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "timestamp": { "type": "string" },
+        "details": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["id", "action", "timestamp"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "Studio global configuration and preferences.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "platformName": { "type": "string", "maxLength": 100 },
+        "superAdminEmail": { "type": "string", "maxLength": 160 },
+        "defaultVisibility": { "type": "string", "enum": ["PUBLIC", "UNLISTED", "PRIVATE"] },
+        "defaultAllowDownloads": { "type": "boolean" },
+        "defaultDownloadQuality": { "type": "string", "enum": ["WEB", "HIGH", "ORIGINAL"] },
+        "defaultTheme": { "type": "string", "enum": ["default", "editorial", "dark", "romantic"] },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "platformName"]
+    }
+  },
+  "firestore": {
+    "/administrators/{adminId}": {
+      "schema": { "$ref": "Administrator" },
+      "description": "Authorized administrators with defined permissions and single Super Admin."
+    },
+    "/albums/{albumId}": {
+      "schema": { "$ref": "Album" },
+      "description": "Event memory albums."
+    },
+    "/media/{mediaId}": {
+      "schema": { "$ref": "Media" },
+      "description": "Photographs and videos belonging to albums."
+    },
+    "/albumSections/{sectionId}": {
+      "schema": { "$ref": "AlbumSection" },
+      "description": "Story sections of an album."
+    },
+    "/activityLogs/{logId}": {
+      "schema": { "$ref": "ActivityLog" },
+      "description": "Audit and administrative activity logs."
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "Setting" },
+      "description": "Studio global configuration."
+    }
+  }
+}

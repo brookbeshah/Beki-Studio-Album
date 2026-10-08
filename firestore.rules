@@ -1,0 +1,121 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all unknown paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Server-configured authoritative Super Admin email
+    function isSuperAdminEmail() {
+      return isSignedIn() &&
+        request.auth.token.email != null &&
+        request.auth.token.email.lower() == 'primeonebrokerageinc@gmail.com';
+    }
+
+    function hasAdminDoc() {
+      return isSignedIn() && exists(/databases/$(database)/documents/administrators/$(request.auth.uid));
+    }
+
+    function adminData() {
+      return get(/databases/$(database)/documents/administrators/$(request.auth.uid)).data;
+    }
+
+    // Active Admin Check:
+    // Super admin is always authorized; other admins require active record with matching email
+    function isAuthorizedAdmin() {
+      return isSuperAdminEmail() || (
+        hasAdminDoc() &&
+        adminData().status == 'ACTIVE' &&
+        request.auth.token.email.lower() == adminData().email.lower()
+      );
+    }
+
+    // Super Admin Check
+    function isSuperAdmin() {
+      return isSuperAdminEmail() || (isAuthorizedAdmin() && adminData().role == 'SUPER_ADMIN');
+    }
+
+    // Granular Permission Check
+    function hasPermission(perm) {
+      return isSuperAdmin() || (isAuthorizedAdmin() && adminData().permissions[perm] == true);
+    }
+
+    // Administrators Collection
+    match /administrators/{adminId} {
+      allow read: if isSuperAdmin() || (isAuthorizedAdmin() && request.auth.uid == adminId);
+      allow create: if isSuperAdmin();
+      allow update: if isSuperAdmin();
+      allow delete: if isSuperAdmin() && resource.data.email.lower() != 'primeonebrokerageinc@gmail.com';
+    }
+
+    // Legacy fallback for admins collection
+    match /admins/{adminId} {
+      allow read: if isSuperAdmin() || (isAuthorizedAdmin() && request.auth.uid == adminId);
+      allow write: if isSuperAdmin();
+    }
+
+    // Albums Collection
+    match /albums/{albumId} {
+      // Public Read Security:
+      // Direct get allowed for published albums that are PUBLIC or UNLISTED
+      // Public list queries allowed for status == PUBLISHED and visibility == PUBLIC
+      // Authorized admins can read all albums in any state
+      allow get: if isAuthorizedAdmin() ||
+                    (resource.data.status == 'PUBLISHED' && (resource.data.visibility == 'PUBLIC' || resource.data.visibility == 'UNLISTED'));
+      allow list: if isAuthorizedAdmin() ||
+                     (resource.data.status == 'PUBLISHED' && resource.data.visibility == 'PUBLIC');
+
+      // Album creation, modification, deletion
+      allow create: if hasPermission('createAlbums');
+      allow update: if hasPermission('editAlbums') || (request.resource.data.status == 'PUBLISHED' && hasPermission('publishAlbums'));
+      allow delete: if hasPermission('editAlbums') || isSuperAdmin();
+    }
+
+    // Media Collection
+    match /media/{mediaId} {
+      // Guests can read active public media
+      allow read: if isAuthorizedAdmin() ||
+                    (resource.data.status == 'ACTIVE' && resource.data.visibility == 'PUBLIC');
+
+      allow create: if hasPermission('uploadMedia');
+      allow update: if hasPermission('editMedia') || hasPermission('reorderMedia');
+      allow delete: if hasPermission('deleteMedia');
+    }
+
+    // Album Sections
+    match /albumSections/{sectionId} {
+      allow read: if true;
+      allow write: if hasPermission('editAlbums');
+    }
+
+    // Activity Logs
+    match /activityLogs/{logId} {
+      allow read: if isAuthorizedAdmin();
+      allow create: if isAuthorizedAdmin();
+      allow update, delete: if isSuperAdmin();
+    }
+
+    // Settings
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAuthorizedAdmin();
+    }
+
+    // Studio Content (Homepage Hero, Gallery, Branding)
+    match /studioContent/{document=**} {
+      allow read: if true;
+      allow write: if isAuthorizedAdmin();
+    }
+
+    // Connection testing
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+  }
+}
