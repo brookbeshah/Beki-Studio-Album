@@ -42,34 +42,6 @@ export function generateSlug(title: string): string {
 export function getStaticPublicAlbums(): Album[] {
   return [
     {
-      id: 'alb_abe_lia',
-      title: 'Abe & Lia',
-      slug: 'abe-lia',
-      eventType: 'Wedding Celebration',
-      eventDate: '2026-09-12',
-      location: 'Addis Ababa',
-      description: 'An intimate, timeless celebration of love, heritage, and joy.',
-      welcomeMessage:
-        'Thank you for celebrating with us. We hope these memories bring the day back to life.',
-      coverMediaId: 'med_01',
-      coverImageUrl:
-        'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1800&q=85',
-      status: 'PUBLISHED',
-      visibility: 'PUBLIC',
-      featured: true,
-      allowDownloads: true,
-      downloadQuality: 'HIGH',
-      createdAt: '2026-09-12T10:00:00.000Z',
-      updatedAt: '2026-09-12T10:00:00.000Z',
-      publishedAt: '2026-09-12T10:00:00.000Z',
-      createdBy: 'system_demo',
-      createdByEmail: 'primeonebrokerageinc@gmail.com',
-      theme: 'default',
-      mediaCount: 11,
-      photoCount: 10,
-      videoCount: 1,
-    },
-    {
       id: 'alb_daniel_hana',
       title: 'Daniel & Hana',
       slug: 'daniel-hana',
@@ -162,12 +134,12 @@ export function getStaticDemoAlbum(): Album {
 
 export function getStaticDemoSections(): AlbumSection[] {
   return [
-    { id: 'sec_prep', albumId: 'alb_abe_lia', title: 'Getting Ready', sortOrder: 0, createdAt: '', updatedAt: '' },
-    { id: 'sec_ceremony', albumId: 'alb_abe_lia', title: 'Ceremony', sortOrder: 1, createdAt: '', updatedAt: '' },
-    { id: 'sec_portraits', albumId: 'alb_abe_lia', title: 'Portraits', sortOrder: 2, createdAt: '', updatedAt: '' },
-    { id: 'sec_family', albumId: 'alb_abe_lia', title: 'Family', sortOrder: 3, createdAt: '', updatedAt: '' },
-    { id: 'sec_reception', albumId: 'alb_abe_lia', title: 'Reception', sortOrder: 4, createdAt: '', updatedAt: '' },
-    { id: 'sec_celebration', albumId: 'alb_abe_lia', title: 'Celebration', sortOrder: 5, createdAt: '', updatedAt: '' },
+    { id: 'sec_prep', albumId: 'alb_daniel_hana', title: 'Getting Ready', sortOrder: 0, createdAt: '', updatedAt: '' },
+    { id: 'sec_ceremony', albumId: 'alb_daniel_hana', title: 'Ceremony', sortOrder: 1, createdAt: '', updatedAt: '' },
+    { id: 'sec_portraits', albumId: 'alb_daniel_hana', title: 'Portraits', sortOrder: 2, createdAt: '', updatedAt: '' },
+    { id: 'sec_family', albumId: 'alb_daniel_hana', title: 'Family', sortOrder: 3, createdAt: '', updatedAt: '' },
+    { id: 'sec_reception', albumId: 'alb_daniel_hana', title: 'Reception', sortOrder: 4, createdAt: '', updatedAt: '' },
+    { id: 'sec_celebration', albumId: 'alb_daniel_hana', title: 'Celebration', sortOrder: 5, createdAt: '', updatedAt: '' },
   ];
 }
 
@@ -175,7 +147,7 @@ export function getStaticDemoMedia(): Media[] {
   return [
     {
       id: 'med_01',
-      albumId: 'alb_abe_lia',
+      albumId: 'alb_daniel_hana',
       type: 'PHOTO',
       originalFileName: 'the_first_look.jpg',
       storagePath: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1400&q=80',
@@ -190,11 +162,11 @@ export function getStaticDemoMedia(): Media[] {
       processingStatus: 'READY',
       status: 'ACTIVE',
       visibility: 'PUBLIC',
-      altText: 'The First Look - Abe & Lia',
+      altText: 'The First Look',
     },
     {
       id: 'med_02',
-      albumId: 'alb_abe_lia',
+      albumId: 'alb_daniel_hana',
       type: 'PHOTO',
       originalFileName: 'bridal_portrait.jpg',
       storagePath: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?auto=format&fit=crop&w=1200&q=80',
@@ -209,11 +181,11 @@ export function getStaticDemoMedia(): Media[] {
       processingStatus: 'READY',
       status: 'ACTIVE',
       visibility: 'PUBLIC',
-      altText: 'Bridal Portrait - Abe & Lia',
+      altText: 'Bridal Portrait',
     },
     {
       id: 'med_03',
-      albumId: 'alb_abe_lia',
+      albumId: 'alb_daniel_hana',
       type: 'PHOTO',
       originalFileName: 'exchange_of_vows.jpg',
       storagePath: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=1400&q=80',
@@ -228,11 +200,11 @@ export function getStaticDemoMedia(): Media[] {
       processingStatus: 'READY',
       status: 'ACTIVE',
       visibility: 'PUBLIC',
-      altText: 'Exchange of Vows - Abe & Lia',
+      altText: 'Exchange of Vows',
     },
     {
       id: 'med_04',
-      albumId: 'alb_abe_lia',
+      albumId: 'alb_daniel_hana',
       type: 'PHOTO',
       originalFileName: 'heirloom_rings.jpg',
       storagePath: 'https://images.unsplash.com/photo-1606800052052-a08af7148866?auto=format&fit=crop&w=1200&q=80',
@@ -251,7 +223,7 @@ export function getStaticDemoMedia(): Media[] {
     },
     {
       id: 'med_05',
-      albumId: 'alb_abe_lia',
+      albumId: 'alb_daniel_hana',
       type: 'PHOTO',
       originalFileName: 'golden_hour_walk.jpg',
       storagePath: 'https://images.unsplash.com/photo-1544077960-604201fe74bc?auto=format&fit=crop&w=1400&q=80',
@@ -270,7 +242,7 @@ export function getStaticDemoMedia(): Media[] {
     },
     {
       id: 'med_06',
-      albumId: 'alb_abe_lia',
+      albumId: 'alb_daniel_hana',
       type: 'PHOTO',
       originalFileName: 'celebration_dinner.jpg',
       storagePath: 'https://images.unsplash.com/photo-1520854221256-17451cc331bf?auto=format&fit=crop&w=1400&q=80',
@@ -289,7 +261,7 @@ export function getStaticDemoMedia(): Media[] {
     },
     {
       id: 'med_07',
-      albumId: 'alb_abe_lia',
+      albumId: 'alb_daniel_hana',
       type: 'PHOTO',
       originalFileName: 'first_dance.jpg',
       storagePath: 'https://images.unsplash.com/photo-1532712938310-34cb3982ef74?auto=format&fit=crop&w=1400&q=80',
@@ -308,7 +280,7 @@ export function getStaticDemoMedia(): Media[] {
     },
     {
       id: 'med_08',
-      albumId: 'alb_abe_lia',
+      albumId: 'alb_daniel_hana',
       type: 'PHOTO',
       originalFileName: 'family_embrace.jpg',
       storagePath: 'https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?auto=format&fit=crop&w=1400&q=80',
@@ -327,7 +299,7 @@ export function getStaticDemoMedia(): Media[] {
     },
     {
       id: 'med_09',
-      albumId: 'alb_abe_lia',
+      albumId: 'alb_daniel_hana',
       type: 'PHOTO',
       originalFileName: 'champagne_toast.jpg',
       storagePath: 'https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&w=1400&q=80',
@@ -346,7 +318,7 @@ export function getStaticDemoMedia(): Media[] {
     },
     {
       id: 'med_10',
-      albumId: 'alb_abe_lia',
+      albumId: 'alb_daniel_hana',
       type: 'PHOTO',
       originalFileName: 'midnight_sendoff.jpg',
       storagePath: 'https://images.unsplash.com/photo-1529636798458-92182e662485?auto=format&fit=crop&w=1400&q=80',
@@ -365,7 +337,7 @@ export function getStaticDemoMedia(): Media[] {
     },
     {
       id: 'med_11',
-      albumId: 'alb_abe_lia',
+      albumId: 'alb_daniel_hana',
       type: 'VIDEO',
       originalFileName: 'ceremony_highlights.mp4',
       storagePath: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
@@ -386,8 +358,25 @@ export function getStaticDemoMedia(): Media[] {
 }
 
 // ----------------------------------------------------
-// ALBUMS SERVICE
+// ALBUMS SERVICE & PERFORMANCE CACHE
 // ----------------------------------------------------
+
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+const memoryCache = new Map<string, CacheEntry<any>>();
+const CACHE_TTL_MS = 60 * 1000; // 60 seconds TTL
+
+export function clearAlbumCache(keyPrefix?: string) {
+  if (!keyPrefix) {
+    memoryCache.clear();
+  } else {
+    for (const k of memoryCache.keys()) {
+      if (k.startsWith(keyPrefix)) memoryCache.delete(k);
+    }
+  }
+}
 
 // ----------------------------------------------------
 // PUBLIC DISCOVERY ALBUMS SERVICE
@@ -399,22 +388,33 @@ export async function getPublicAlbums(options?: {
   featuredOnly?: boolean;
 }): Promise<Album[]> {
   try {
-    const albumsRef = collection(db, 'albums');
-    // STRICT PRIVACY ENFORCEMENT: ONLY status == 'PUBLISHED' and visibility == 'PUBLIC'
-    const q = query(
-      albumsRef,
-      where('status', '==', 'PUBLISHED'),
-      where('visibility', '==', 'PUBLIC')
-    );
+    const cacheKey = 'pub_albums_all';
+    const cached = memoryCache.get(cacheKey);
+    let allPublicList: Album[];
 
-    const snapshot = await getDocs(q);
-    let list: Album[] = [];
-    snapshot.forEach((doc) => {
-      list.push({ ...(doc.data() as Album), id: doc.id });
-    });
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      allPublicList = [...cached.data];
+    } else {
+      const albumsRef = collection(db, 'albums');
+      // STRICT PRIVACY ENFORCEMENT: ONLY status == 'PUBLISHED' and visibility == 'PUBLIC'
+      const q = query(
+        albumsRef,
+        where('status', '==', 'PUBLISHED'),
+        where('visibility', '==', 'PUBLIC')
+      );
 
-    // Sort by creation date descending
-    list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const snapshot = await getDocs(q);
+      allPublicList = [];
+      snapshot.forEach((doc) => {
+        allPublicList.push({ ...(doc.data() as Album), id: doc.id });
+      });
+
+      // Sort by creation date descending
+      allPublicList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      memoryCache.set(cacheKey, { data: allPublicList, timestamp: Date.now() });
+    }
+
+    let list = [...allPublicList];
 
     // Filter by featured if requested
     if (options?.featuredOnly) {
@@ -625,10 +625,18 @@ export async function getAlbumBySlug(slug: string): Promise<Album | null> {
 
 export async function getAlbumById(id: string): Promise<Album | null> {
   try {
+    const cacheKey = `album_id_${id}`;
+    const cached = memoryCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return cached.data;
+    }
+
     const docRef = doc(db, 'albums', id);
     const snap = await getDoc(docRef);
     if (!snap.exists()) return null;
-    return { ...(snap.data() as Album), id: snap.id };
+    const item = { ...(snap.data() as Album), id: snap.id };
+    memoryCache.set(cacheKey, { data: item, timestamp: Date.now() });
+    return item;
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, `albums/${id}`);
   }
@@ -639,6 +647,7 @@ export async function createAlbum(
   actor: { id: string; name: string; email: string }
 ): Promise<Album> {
   try {
+    clearAlbumCache();
     const albumId = albumData.id || 'alb_' + Math.random().toString(36).substring(2, 10);
     let slug = albumData.slug || generateSlug(albumData.title || 'untitled-event');
 
@@ -701,6 +710,7 @@ export async function updateAlbum(
   actor: { id: string; name: string; email: string }
 ): Promise<void> {
   try {
+    clearAlbumCache();
     const docRef = doc(db, 'albums', albumId);
     const payload = {
       ...updates,
@@ -734,6 +744,7 @@ export async function deleteAlbum(
   actor: { id: string; name: string; email: string }
 ): Promise<void> {
   try {
+    clearAlbumCache();
     const mediaList = await getAlbumMedia(albumId);
     const batch = writeBatch(db);
 
@@ -780,7 +791,6 @@ export async function getAlbumMedia(albumId: string, sectionId?: string): Promis
 
     if (list.length === 0) {
       if (
-        albumId === 'alb_abe_lia' ||
         albumId === 'alb_daniel_hana' ||
         albumId === 'alb_michael_ruth' ||
         albumId === 'alb_samuel_betty'
@@ -798,7 +808,6 @@ export async function getAlbumMedia(albumId: string, sectionId?: string): Promis
     return list;
   } catch (error) {
     if (
-      albumId === 'alb_abe_lia' ||
       albumId === 'alb_daniel_hana' ||
       albumId === 'alb_michael_ruth' ||
       albumId === 'alb_samuel_betty'
@@ -843,7 +852,7 @@ export async function createMediaItem(
     await setDoc(doc(db, 'media', mediaId), newMedia);
 
     const album = await getAlbumById(newMedia.albumId);
-    if (album && album.id !== 'alb_abe_lia') {
+    if (album) {
       const isVideo = newMedia.type === 'VIDEO';
       await updateDoc(doc(db, 'albums', newMedia.albumId), {
         mediaCount: (album.mediaCount || 0) + 1,
@@ -876,7 +885,7 @@ export async function deleteMediaItem(
     await deleteDoc(doc(db, 'media', mediaId));
 
     const album = await getAlbumById(albumId);
-    if (album && album.id !== 'alb_abe_lia') {
+    if (album) {
       await updateDoc(doc(db, 'albums', albumId), {
         mediaCount: Math.max(0, (album.mediaCount || 1) - 1),
         photoCount: Math.max(0, (album.photoCount || 1) - 1),
@@ -914,14 +923,12 @@ export async function deleteMultipleMedia(
     const photos = remaining.filter((m) => m.type === 'PHOTO').length;
     const videos = remaining.filter((m) => m.type === 'VIDEO').length;
 
-    if (albumId !== 'alb_abe_lia') {
-      await updateDoc(doc(db, 'albums', albumId), {
-        mediaCount: remaining.length,
-        photoCount: photos,
-        videoCount: videos,
-        updatedAt: new Date().toISOString(),
-      });
-    }
+    await updateDoc(doc(db, 'albums', albumId), {
+      mediaCount: remaining.length,
+      photoCount: photos,
+      videoCount: videos,
+      updatedAt: new Date().toISOString(),
+    });
 
     await logActivity({
       actorId: actor.id,
@@ -950,16 +957,9 @@ export async function getAlbumSections(albumId: string): Promise<AlbumSection[]>
     let list: AlbumSection[] = [];
     snap.forEach((d) => list.push(d.data() as AlbumSection));
 
-    if (list.length === 0 && (albumId === 'alb_abe_lia' || albumId.includes('abe_lia'))) {
-      list = getStaticDemoSections();
-    }
-
     list.sort((a, b) => a.sortOrder - b.sortOrder);
     return list;
   } catch (error) {
-    if (albumId === 'alb_abe_lia' || albumId.includes('abe_lia')) {
-      return getStaticDemoSections();
-    }
     handleFirestoreError(error, OperationType.LIST, `albumSections?albumId=${albumId}`);
   }
 }
@@ -1179,17 +1179,17 @@ export async function getDashboardStats() {
 }
 
 // ----------------------------------------------------
-// DEMO SEED DATA ("Abe & Lia" Wedding Celebration)
+// STARTER SEED DATA
 // ----------------------------------------------------
 
 export async function seedDemoAlbumIfEmpty(): Promise<boolean> {
   try {
+    const demo = getStaticDemoAlbum();
     const albums = await getAlbums();
-    if (albums.some((a) => a.id === 'alb_abe_lia')) {
+    if (albums.some((a) => a.id === demo.id)) {
       return false;
     }
 
-    const demo = getStaticDemoAlbum();
     const demoSections = getStaticDemoSections();
     const demoMedia = getStaticDemoMedia();
 

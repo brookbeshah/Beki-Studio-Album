@@ -72,7 +72,7 @@ export const PublicGallery: React.FC<PublicGalleryProps> = ({
       {filteredMedia.length === 0 ? (
         <div className="text-center py-20 px-4">
           <p className="font-serif text-xl text-[#77736B] italic">
-            No memories uploaded in this section yet.
+            {t('album.noPhotos') || 'No memories uploaded in this section yet.'}
           </p>
         </div>
       ) : (

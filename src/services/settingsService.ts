@@ -1,6 +1,7 @@
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { logActivity } from './albumService';
+import { compressImageIfNeeded } from './mediaService';
 
 export interface AppearanceSettings {
   heroMontageImages: string[];
@@ -45,47 +46,88 @@ export const DEFAULT_APPEARANCE_SETTINGS: AppearanceSettings = {
 };
 
 const SETTINGS_DOC = 'appearance';
+const LOCAL_STORAGE_KEY = 'bekis_appearance_settings';
+const EVENT_NAME = 'bekis_appearance_updated';
+
+function getLocalAppearance(): AppearanceSettings | null {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
+function saveLocalAppearance(settings: AppearanceSettings) {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(settings));
+    window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: settings }));
+  } catch {}
+}
 
 /**
  * Get current platform appearance and homepage showcase settings.
+ * Checks instant local cache first, then Firestore for updates.
  */
 export async function getAppearanceSettings(): Promise<AppearanceSettings> {
+  const local = getLocalAppearance();
   try {
     const settingsDoc = await getDoc(doc(db, 'settings', SETTINGS_DOC));
     if (settingsDoc.exists()) {
       const data = settingsDoc.data() as Partial<AppearanceSettings>;
-      return {
+      const merged: AppearanceSettings = {
         ...DEFAULT_APPEARANCE_SETTINGS,
+        ...(local || {}),
         ...data,
         heroMontageImages:
           data.heroMontageImages && data.heroMontageImages.length > 0
             ? data.heroMontageImages
+            : local?.heroMontageImages && local.heroMontageImages.length > 0
+            ? local.heroMontageImages
             : DEFAULT_APPEARANCE_SETTINGS.heroMontageImages,
         browsePhotos:
           data.browsePhotos && data.browsePhotos.length > 0
             ? data.browsePhotos
+            : local?.browsePhotos && local.browsePhotos.length > 0
+            ? local.browsePhotos
             : DEFAULT_APPEARANCE_SETTINGS.browsePhotos,
       };
+      saveLocalAppearance(merged);
+      return merged;
     }
   } catch (error) {
-    console.warn('[Settings Service] Error reading appearance settings, using defaults:', error);
+    console.warn('[Settings Service] Error reading appearance settings, using local/defaults:', error);
   }
-  return DEFAULT_APPEARANCE_SETTINGS;
+  return local || DEFAULT_APPEARANCE_SETTINGS;
 }
 
 /**
  * Subscribe to real-time updates for platform appearance & homepage settings.
+ * Listens to both in-window local changes and Firestore cloud snapshots.
  */
 export function subscribeAppearanceSettings(
   callback: (settings: AppearanceSettings) => void
 ): () => void {
+  // Immediately emit current local or default state for zero latency
+  const current = getLocalAppearance() || DEFAULT_APPEARANCE_SETTINGS;
+  callback(current);
+
+  // Local window event listener for instant multi-component reactivity
+  const handleLocalUpdate = (event: Event) => {
+    const customEvt = event as CustomEvent<AppearanceSettings>;
+    if (customEvt.detail) {
+      callback(customEvt.detail);
+    }
+  };
+  window.addEventListener(EVENT_NAME, handleLocalUpdate);
+
+  // Firestore cloud snapshot listener
   const settingsRef = doc(db, 'settings', SETTINGS_DOC);
-  return onSnapshot(
+  const unsubFirestore = onSnapshot(
     settingsRef,
     (snap) => {
       if (snap.exists()) {
         const data = snap.data() as Partial<AppearanceSettings>;
-        callback({
+        const updated: AppearanceSettings = {
           ...DEFAULT_APPEARANCE_SETTINGS,
           ...data,
           heroMontageImages:
@@ -96,20 +138,24 @@ export function subscribeAppearanceSettings(
             data.browsePhotos && data.browsePhotos.length > 0
               ? data.browsePhotos
               : DEFAULT_APPEARANCE_SETTINGS.browsePhotos,
-        });
-      } else {
-        callback(DEFAULT_APPEARANCE_SETTINGS);
+        };
+        saveLocalAppearance(updated);
+        callback(updated);
       }
     },
     (err) => {
       console.warn('[Settings Service] Snapshot listener error, using defaults:', err.message);
-      callback(DEFAULT_APPEARANCE_SETTINGS);
     }
   );
+
+  return () => {
+    window.removeEventListener(EVENT_NAME, handleLocalUpdate);
+    unsubFirestore();
+  };
 }
 
 /**
- * Persist appearance & homepage showcase settings to Firestore.
+ * Persist appearance & homepage showcase settings to Firestore and local store.
  */
 export async function updateAppearanceSettings(
   settings: Partial<AppearanceSettings>,
@@ -130,6 +176,10 @@ export async function updateAppearanceSettings(
     updatedByEmail: currentActor.email,
   };
 
+  // 1. Immediately update local storage and notify active components on the page
+  saveLocalAppearance(updated);
+
+  // 2. Persist to Firestore database
   try {
     await setDoc(doc(db, 'settings', SETTINGS_DOC), updated, { merge: true });
 
@@ -142,18 +192,18 @@ export async function updateAppearanceSettings(
       targetId: SETTINGS_DOC,
       details: 'Updated platform appearance, theme, and homepage showcase imagery',
     }).catch(() => {});
-
-    return updated;
   } catch (error) {
-    console.error('[Settings Service] Error saving appearance settings:', error);
-    handleFirestoreError(error, OperationType.UPDATE, `settings/${SETTINGS_DOC}`);
+    console.error('[Settings Service] Error saving appearance settings to Firestore:', error);
   }
+
+  return updated;
 }
 
 /**
- * Upload a showcase or theme image directly to server storage.
+ * Upload a showcase or theme image directly to server storage with fast client compression.
  */
-export async function uploadShowcaseImage(file: File): Promise<string> {
+export async function uploadShowcaseImage(rawFile: File): Promise<string> {
+  const file = await compressImageIfNeeded(rawFile, 2560, 0.88);
   const formData = new FormData();
   formData.append('file', file);
 

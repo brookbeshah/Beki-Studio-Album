@@ -11,7 +11,7 @@ interface ConfirmDialogProps {
   description: string;
   confirmLabel?: string;
   cancelLabel?: string;
-  requireTypingText?: string; // e.g. "ABE & LIA" for album deletion
+  requireTypingText?: string; // e.g. "DELETE" or album title for deletion confirmation
   isDestructive?: boolean;
   isLoading?: boolean;
 }

@@ -75,7 +75,7 @@ export const Hero: React.FC<HeroProps> = ({ album, onViewMemories }) => {
           onClick={onViewMemories}
           className="group inline-flex items-center gap-3 px-8 py-3.5 bg-[#F8F6F0]/95 hover:bg-[#FFFFFF] text-[#171717] rounded-xs text-xs sm:text-sm tracking-[0.25em] uppercase font-medium shadow-xl hover:shadow-2xl transition-all duration-300 active:scale-[0.98] border border-[#C8A96B]/50 cursor-pointer"
         >
-          <span>View Memories</span>
+          <span>{t('album.viewMemories') || 'View Memories'}</span>
           <ArrowDown className="w-4 h-4 text-[#C8A96B] transition-transform duration-300 group-hover:translate-y-1" />
         </button>
       </div>
@@ -83,7 +83,9 @@ export const Hero: React.FC<HeroProps> = ({ album, onViewMemories }) => {
       {/* Bottom hint */}
       <div className="relative z-10 pb-2">
         <span className="text-[10px] tracking-[0.2em] uppercase text-[#F8F6F0]/50">
-          Scroll to explore {album.photoCount || album.mediaCount || ''} photographs
+          {album.photoCount || album.mediaCount
+            ? t('album.scrollCount', { count: album.photoCount || album.mediaCount }) || `Scroll to explore ${album.photoCount || album.mediaCount} photographs`
+            : t('album.scrollToExplore') || 'Scroll to explore'}
         </span>
       </div>
     </section>

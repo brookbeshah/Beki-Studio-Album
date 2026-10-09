@@ -68,17 +68,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     loadData();
   }, []);
 
-  const handleSeedDemo = async () => {
-    info('Seeding demo album (Abe & Lia)...');
-    const seeded = await seedDemoAlbumIfEmpty();
-    if (seeded) {
-      success('Demo album "Abe & Lia" created successfully.');
-      loadData();
-    } else {
-      info('Demo album already exists or albums already present.');
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="p-8 max-w-7xl mx-auto space-y-8 animate-pulse">
@@ -114,16 +103,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
-          {!hasAlbums && isSuperAdmin && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSeedDemo}
-              leftIcon={<Sparkles className="w-3.5 h-3.5 text-[#C8A96B]" />}
-            >
-              Seed Demo Album
-            </Button>
-          )}
           {canCreate && (
             <Button
               variant="gold"
@@ -219,11 +198,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             {canCreate && (
               <Button variant="gold" size="md" onClick={onCreateAlbum} leftIcon={<Plus className="w-4 h-4" />}>
                 Create Album
-              </Button>
-            )}
-            {isSuperAdmin && (
-              <Button variant="outline" size="md" onClick={handleSeedDemo}>
-                Load Demo Collection (Abe & Lia)
               </Button>
             )}
           </div>

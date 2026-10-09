@@ -236,7 +236,7 @@ export const AdminAlbumEditor: React.FC<AdminAlbumEditorProps> = ({
                   type="text"
                   value={title}
                   onChange={(e) => handleTitleChange(e.target.value)}
-                  placeholder="e.g. Abe & Lia"
+                  placeholder="e.g. Dawit & Selam"
                   className="w-full px-4 py-2.5 bg-[#F8F6F0] border border-[#E8E0D0] rounded-xs text-sm text-[#171717] focus:outline-none focus:border-[#C8A96B]"
                 />
               </div>
@@ -253,7 +253,7 @@ export const AdminAlbumEditor: React.FC<AdminAlbumEditorProps> = ({
                     type="text"
                     value={slug}
                     onChange={(e) => setSlug(e.target.value)}
-                    placeholder="abe-lia"
+                    placeholder="dawit-selam"
                     className="w-full px-3 py-2.5 bg-[#F8F6F0] border border-[#E8E0D0] rounded-r-xs text-sm text-[#171717] font-mono focus:outline-none focus:border-[#C8A96B]"
                   />
                 </div>
@@ -421,7 +421,7 @@ export const AdminAlbumEditor: React.FC<AdminAlbumEditorProps> = ({
                   <img src={coverImageUrl} alt="Cover preview" className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-center p-4">
                     <h4 className="font-serif text-3xl sm:text-4xl text-white font-normal">
-                      {title || 'Abe & Lia'}
+                      {title || 'Collection Title'}
                     </h4>
                   </div>
                 </div>

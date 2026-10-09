@@ -3,6 +3,11 @@ import amData from './am.json';
 import tiData from './ti.json';
 import omData from './om.json';
 
+import { en as enTs } from './en';
+import { am as amTs } from './am';
+import { ti as tiTs } from './ti';
+import { om as omTs } from './om';
+
 export type SupportedLocale = 'en' | 'am' | 'ti' | 'om';
 
 export interface LanguageOption {
@@ -38,15 +43,25 @@ function flattenTranslations(obj: Record<string, unknown>, prefix = ''): Record<
   return flattened;
 }
 
-export const enFlat = flattenTranslations(enData);
-export const amFlat = flattenTranslations(amData);
-export const tiFlat = flattenTranslations(tiData);
-export const omFlat = flattenTranslations(omData);
+// Flatten JSON files
+const rawEnFlat = flattenTranslations(enData);
+const rawAmFlat = flattenTranslations(amData);
+const rawTiFlat = flattenTranslations(tiData);
+const rawOmFlat = flattenTranslations(omData);
+
+// Merge with flat TypeScript keys (ensuring total union coverage)
+export const enFlat: Record<string, string> = { ...enTs, ...rawEnFlat };
+export const amFlat: Record<string, string> = { ...amTs, ...rawAmFlat };
+export const tiFlat: Record<string, string> = { ...tiTs, ...rawTiFlat };
+export const omFlat: Record<string, string> = { ...omTs, ...rawOmFlat };
 
 // Direct exports of the parsed JSON objects
 export { enData, amData, tiData, omData };
 
-// Export the flattened dictionary for ultra-fast direct lookup
+// Direct exports of the TS objects
+export { enTs, amTs, tiTs, omTs };
+
+// Export the unified flattened dictionary for ultra-fast direct lookup
 export const translations: Record<SupportedLocale, Record<string, string>> = {
   en: enFlat,
   am: amFlat,
@@ -60,6 +75,7 @@ export const translations: Record<SupportedLocale, Record<string, string>> = {
  */
 export function validateTranslations(): {
   isValid: boolean;
+  totalKeys: number;
   missingInAmharic: string[];
   missingInTigrinya: string[];
   missingInOromo: string[];
@@ -74,7 +90,7 @@ export function validateTranslations(): {
     missingInTigrinya.length === 0 &&
     missingInOromo.length === 0;
 
-  if (!isValid && import.meta.env.DEV) {
+  if (!isValid && typeof window !== 'undefined' && (import.meta as any).env?.DEV) {
     console.warn('[i18n Validation] Discrepancies found in translation keys:', {
       missingInAmharic,
       missingInTigrinya,
@@ -84,6 +100,7 @@ export function validateTranslations(): {
 
   return {
     isValid,
+    totalKeys: enKeys.length,
     missingInAmharic,
     missingInTigrinya,
     missingInOromo,
@@ -91,6 +108,6 @@ export function validateTranslations(): {
 }
 
 // Run key verification in development mode
-if (typeof window !== 'undefined' && import.meta.env.DEV) {
+if (typeof window !== 'undefined' && (import.meta as any).env?.DEV) {
   validateTranslations();
 }

@@ -8,7 +8,12 @@ import {
   deleteMultipleMedia,
   updateAlbum,
 } from '../services/albumService';
-import { deleteMediaItem, subscribeAlbumMedia, validateImageUrl } from '../services/mediaService';
+import {
+  deleteMediaItem,
+  subscribeAlbumMedia,
+  validateImageUrl,
+  addMultipleMediaFromUrls,
+} from '../services/mediaService';
 import { Button } from '../components/common/Button';
 import { StatusBadge, VisibilityBadge } from '../components/common/Badge';
 import { BulkUploader } from '../components/admin/BulkUploader';
@@ -30,6 +35,9 @@ import {
   Image as ImageIcon,
   Layers,
   Sparkles,
+  Link,
+  X,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface AdminAlbumDetailProps {
@@ -131,6 +139,65 @@ export const AdminAlbumDetail: React.FC<AdminAlbumDetailProps> = ({
       error(e.message || 'Failed to update cover');
     } finally {
       setIsSettingCoverUrl(false);
+    }
+  };
+
+  // Direct Media URL Modal State
+  const [showAddUrlModal, setShowAddUrlModal] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
+  const [urlAltText, setUrlAltText] = useState('');
+  const [urlSectionId, setUrlSectionId] = useState('');
+  const [urlMediaType, setUrlMediaType] = useState<'PHOTO' | 'VIDEO'>('PHOTO');
+  const [isAddingUrlMedia, setIsAddingUrlMedia] = useState(false);
+
+  const handleAddMediaFromUrls = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!album || !urlInput.trim() || isAddingUrlMedia) return;
+
+    const urls = urlInput
+      .split(/[\n,]/)
+      .map((u) => u.trim())
+      .filter((u) => u.length > 0);
+
+    if (urls.length === 0) {
+      error('Please enter at least one image or video URL');
+      return;
+    }
+
+    setIsAddingUrlMedia(true);
+    try {
+      const actor = {
+        id: user?.uid || 'admin',
+        name: adminProfile?.name || 'Administrator',
+        email: adminProfile?.email || 'admin@bekisstudio.com',
+      };
+
+      const added = await addMultipleMediaFromUrls({
+        albumId: album.id,
+        urls,
+        sectionId: urlSectionId,
+        altTextPrefix: urlAltText.trim() || (urlMediaType === 'VIDEO' ? 'Video Moment' : 'Wedding Photograph'),
+        actor,
+      });
+
+      if (added.length > 0) {
+        success(
+          added.length === 1
+            ? 'Media item added from URL!'
+            : `Added ${added.length} media items to album from URLs!`
+        );
+        setShowAddUrlModal(false);
+        setUrlInput('');
+        setUrlAltText('');
+        setUrlSectionId('');
+        loadData();
+      } else {
+        error('Could not validate any provided URLs. Make sure they start with https://');
+      }
+    } catch (err: any) {
+      error(err.message || 'Failed to add media from URLs');
+    } finally {
+      setIsAddingUrlMedia(false);
     }
   };
 
@@ -509,25 +576,49 @@ export const AdminAlbumDetail: React.FC<AdminAlbumDetailProps> = ({
                 </Button>
               )}
               <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setUrlMediaType('PHOTO');
+                  setShowAddUrlModal(true);
+                }}
+                leftIcon={<Link className="w-3.5 h-3.5 text-[#C8A96B]" />}
+              >
+                Add Photos by URL
+              </Button>
+              <Button
                 variant="gold"
                 size="sm"
                 onClick={() => setActiveTab('upload')}
                 leftIcon={<Upload className="w-3.5 h-3.5" />}
               >
-                Upload More
+                Upload Files
               </Button>
             </div>
           </div>
 
           {/* Media Grid */}
           {photos.length === 0 ? (
-            <div className="bg-[#FCFBF8] border border-[#E8E0D0] p-12 text-center rounded-xs">
-              <p className="font-serif text-xl text-[#77736B] italic mb-4">
+            <div className="bg-[#FCFBF8] border border-[#E8E0D0] p-12 text-center rounded-xs space-y-4">
+              <p className="font-serif text-xl text-[#77736B] italic">
                 No photographs in this collection yet.
               </p>
-              <Button variant="gold" size="sm" onClick={() => setActiveTab('upload')}>
-                Upload Photographs
-              </Button>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <Button
+                  variant="gold"
+                  size="sm"
+                  onClick={() => {
+                    setUrlMediaType('PHOTO');
+                    setShowAddUrlModal(true);
+                  }}
+                  leftIcon={<Link className="w-3.5 h-3.5" />}
+                >
+                  Add Photos via URL (Fast)
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setActiveTab('upload')} leftIcon={<Upload className="w-3.5 h-3.5" />}>
+                  Upload Photographs
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
@@ -600,39 +691,70 @@ export const AdminAlbumDetail: React.FC<AdminAlbumDetailProps> = ({
       {activeTab === 'videos' && (
         <div className="space-y-6">
           {videos.length === 0 ? (
-            <div className="bg-[#FCFBF8] border border-[#E8E0D0] p-12 text-center rounded-xs">
-              <Play className="w-8 h-8 text-[#C8A96B] mx-auto mb-3" />
-              <p className="font-serif text-xl text-[#77736B] italic mb-4">
+            <div className="bg-[#FCFBF8] border border-[#E8E0D0] p-12 text-center rounded-xs space-y-4">
+              <Play className="w-8 h-8 text-[#C8A96B] mx-auto mb-1" />
+              <p className="font-serif text-xl text-[#77736B] italic">
                 No video moments uploaded yet.
               </p>
-              <Button variant="gold" size="sm" onClick={() => setActiveTab('upload')}>
-                Upload Video Reels
-              </Button>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <Button
+                  variant="gold"
+                  size="sm"
+                  onClick={() => {
+                    setUrlMediaType('VIDEO');
+                    setShowAddUrlModal(true);
+                  }}
+                  leftIcon={<Link className="w-3.5 h-3.5" />}
+                >
+                  Add Video via URL
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setActiveTab('upload')} leftIcon={<Upload className="w-3.5 h-3.5" />}>
+                  Upload Video Reels
+                </Button>
+              </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {videos.map((vid) => (
-                <div
-                  key={vid.id}
-                  className="bg-[#FCFBF8] border border-[#E8E0D0] rounded-xs overflow-hidden shadow-xs"
+            <div className="space-y-4">
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setUrlMediaType('VIDEO');
+                    setShowAddUrlModal(true);
+                  }}
+                  leftIcon={<Link className="w-3.5 h-3.5 text-[#C8A96B]" />}
                 >
-                  <video
-                    src={vid.storagePath}
-                    controls
-                    playsInline
-                    className="w-full aspect-16/9 bg-black object-cover"
-                  />
-                  <div className="p-4 flex items-center justify-between text-xs">
-                    <span className="font-medium truncate">{vid.originalFileName}</span>
-                    <button
-                      onClick={() => setMediaToDelete(vid)}
-                      className="text-red-700 hover:text-red-900 p-1 cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                  Add Video by URL
+                </Button>
+                <Button variant="gold" size="sm" onClick={() => setActiveTab('upload')} leftIcon={<Upload className="w-3.5 h-3.5" />}>
+                  Upload Videos
+                </Button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {videos.map((vid) => (
+                  <div
+                    key={vid.id}
+                    className="bg-[#FCFBF8] border border-[#E8E0D0] rounded-xs overflow-hidden shadow-xs"
+                  >
+                    <video
+                      src={vid.storagePath}
+                      controls
+                      playsInline
+                      className="w-full aspect-16/9 bg-black object-cover"
+                    />
+                    <div className="p-4 flex items-center justify-between text-xs">
+                      <span className="font-medium truncate">{vid.originalFileName}</span>
+                      <button
+                        onClick={() => setMediaToDelete(vid)}
+                        className="text-red-700 hover:text-red-900 p-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -784,6 +906,110 @@ export const AdminAlbumDetail: React.FC<AdminAlbumDetailProps> = ({
           isDestructive={true}
           isLoading={isDeletingMedia}
         />
+      )}
+
+      {/* Direct Add Media from URL Modal */}
+      {showAddUrlModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-[#FCFBF8] border border-[#E8E0D0] rounded-xs max-w-lg w-full p-6 shadow-2xl relative space-y-4">
+            <button
+              onClick={() => setShowAddUrlModal(false)}
+              className="absolute top-4 right-4 p-1 text-[#77736B] hover:text-[#171717] rounded-xs cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div>
+              <span className="text-[10px] uppercase tracking-[0.25em] text-[#C8A96B] font-semibold">
+                Instant Gallery Addition
+              </span>
+              <h3 className="font-serif text-2xl text-[#171717] font-normal">
+                Add {urlMediaType === 'VIDEO' ? 'Videos' : 'Photographs'} by URL
+              </h3>
+              <p className="text-xs text-[#77736B] font-light mt-0.5">
+                Paste one or multiple external media links to add instantly without slow uploads.
+              </p>
+            </div>
+
+            <form onSubmit={handleAddMediaFromUrls} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider text-[#77736B] mb-1 font-medium">
+                  {urlMediaType === 'VIDEO' ? 'Video' : 'Image'} URL(s)
+                </label>
+                <textarea
+                  rows={4}
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  placeholder={
+                    urlMediaType === 'VIDEO'
+                      ? 'https://example.com/video.mp4\n(Paste multiple URLs on separate lines)'
+                      : 'https://images.unsplash.com/photo-1519741497674-611481863552?w=1600\nhttps://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=1600\n(Paste multiple URLs on separate lines)'
+                  }
+                  className="w-full px-3 py-2 bg-white border border-[#E8E0D0] rounded-xs font-mono text-xs text-[#171717] focus:border-[#C8A96B] outline-none"
+                  required
+                />
+                <span className="text-[10px] text-[#77736B] block mt-1">
+                  HTTPS links are accepted. Separate multiple URLs by comma or new line.
+                </span>
+              </div>
+
+              {/* Optional Section Assignment */}
+              {sections.length > 0 && (
+                <div>
+                  <label className="block text-[11px] uppercase tracking-wider text-[#77736B] mb-1 font-medium">
+                    Assign to Section (Optional)
+                  </label>
+                  <select
+                    value={urlSectionId}
+                    onChange={(e) => setUrlSectionId(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-[#E8E0D0] rounded-xs text-[#171717] focus:border-[#C8A96B] outline-none"
+                  >
+                    <option value="">No Section (All Memories)</option>
+                    {sections.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider text-[#77736B] mb-1 font-medium">
+                  Caption / Alt Label (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={urlAltText}
+                  onChange={(e) => setUrlAltText(e.target.value)}
+                  placeholder="e.g. First Dance at Sunset"
+                  className="w-full px-3 py-2 bg-white border border-[#E8E0D0] rounded-xs text-[#171717] focus:border-[#C8A96B] outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E8E0D0]">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAddUrlModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="gold"
+                  size="sm"
+                  isLoading={isAddingUrlMedia}
+                  disabled={!urlInput.trim()}
+                  leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
+                >
+                  Add to Album
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

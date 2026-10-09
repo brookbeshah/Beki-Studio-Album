@@ -238,7 +238,7 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
         }`}
       >
         <span className="text-[10px] tracking-widest uppercase text-white/50 font-light">
-          Swipe left or right to browse
+          {t('viewer.swipeHint') || 'Swipe left or right to browse'}
         </span>
       </div>
     </div>

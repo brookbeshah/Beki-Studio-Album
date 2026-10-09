@@ -21,6 +21,10 @@ import {
 import { storage, db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { Media, Album } from '../types';
 import { logActivity } from './albumService';
+import { compressImageFile, compressImageIfNeeded, CompressionDiagnostic } from '../utils/imageUtils';
+
+export { compressImageFile, compressImageIfNeeded };
+export type { CompressionDiagnostic };
 
 export interface UploadProgressCallback {
   (percentage: number, bytesTransferred: number, totalBytes: number): void;
@@ -183,6 +187,97 @@ export async function addMediaFromUrl(options: {
 }
 
 /**
+ * Batch add multiple images or videos from a list of URLs with high performance.
+ */
+export async function addMultipleMediaFromUrls(options: {
+  albumId: string;
+  urls: string[];
+  altTextPrefix?: string;
+  sectionId?: string;
+  actor?: { id: string; name: string; email: string };
+}): Promise<Media[]> {
+  const { albumId, urls, altTextPrefix = '', sectionId = '' } = options;
+  const actor = options.actor || {
+    id: auth.currentUser?.uid || 'admin',
+    name: auth.currentUser?.displayName || 'Administrator',
+    email: auth.currentUser?.email || 'admin@bekisstudio.com',
+  };
+
+  const addedMedia: Media[] = [];
+  let photoAdded = 0;
+  let videoAdded = 0;
+
+  for (let i = 0; i < urls.length; i++) {
+    const rawUrl = urls[i].trim();
+    if (!rawUrl) continue;
+    const validation = validateImageUrl(rawUrl);
+    if (!validation.valid) continue;
+
+    const isVideo = !!rawUrl.match(/\.(mp4|mov|webm)(\?.*)?$/i);
+    const mediaType: 'PHOTO' | 'VIDEO' = isVideo ? 'VIDEO' : 'PHOTO';
+    const mediaId = 'med_url_' + Math.random().toString(36).substring(2, 10);
+    const normalizedUrl = validation.normalized;
+    const rawFilename = normalizedUrl.split('/').pop()?.split('?')[0] || (isVideo ? 'video.mp4' : 'photo.jpg');
+
+    const newMedia: Media = {
+      id: mediaId,
+      albumId,
+      type: mediaType,
+      sourceType: 'URL',
+      url: normalizedUrl,
+      originalFileName: rawFilename,
+      storagePath: normalizedUrl,
+      thumbnailPath: normalizedUrl,
+      optimizedPath: normalizedUrl,
+      mimeType: isVideo ? 'video/mp4' : 'image/jpeg',
+      fileSize: 0,
+      sortOrder: Date.now() + i,
+      sectionId,
+      uploadedBy: actor.id,
+      uploadedByEmail: actor.email,
+      uploadedAt: new Date().toISOString(),
+      processingStatus: 'READY',
+      status: 'ACTIVE',
+      visibility: 'PUBLIC',
+      altText: altTextPrefix ? `${altTextPrefix} ${i + 1}` : rawFilename.replace(/[-_]/g, ' '),
+    };
+
+    await setDoc(doc(db, 'media', mediaId), newMedia);
+    addedMedia.push(newMedia);
+    if (isVideo) videoAdded++;
+    else photoAdded++;
+  }
+
+  if (addedMedia.length > 0) {
+    const albumRef = doc(db, 'albums', albumId);
+    const albumSnap = await getDoc(albumRef);
+    if (albumSnap.exists()) {
+      const albumData = albumSnap.data() as Album;
+      const updates: Partial<Album> = {
+        mediaCount: (albumData.mediaCount || 0) + addedMedia.length,
+        photoCount: (albumData.photoCount || 0) + photoAdded,
+        videoCount: (albumData.videoCount || 0) + videoAdded,
+        updatedAt: new Date().toISOString(),
+        updatedBy: actor.id,
+        updatedByEmail: actor.email,
+      };
+
+      if (!albumData.coverImageUrl && photoAdded > 0) {
+        const firstPhoto = addedMedia.find((m) => m.type === 'PHOTO');
+        if (firstPhoto) {
+          updates.coverImageUrl = firstPhoto.storagePath;
+          updates.coverMediaId = firstPhoto.id;
+        }
+      }
+
+      await updateDoc(albumRef, updates);
+    }
+  }
+
+  return addedMedia;
+}
+
+/**
  * Upload a media file (photo or video) with comprehensive diagnostic logging for:
  * 1. File validation steps
  * 2. Authentication state
@@ -192,9 +287,11 @@ export async function addMediaFromUrl(options: {
  */
 export async function uploadMediaFile(
   albumId: string,
-  file: File,
+  rawFile: File,
   options?: MediaUploadOptions
 ): Promise<Media> {
+  // Ultra-fast client-side image compression for large photos
+  const file = await compressImageIfNeeded(rawFile);
   const isVideo = file.type.startsWith('video') || !!file.name.match(/\.(mp4|mov|webm)$/i);
   const mediaType: 'PHOTO' | 'VIDEO' = isVideo ? 'VIDEO' : 'PHOTO';
   const mediaId = 'med_' + Math.random().toString(36).substring(2, 10);

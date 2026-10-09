@@ -1,26 +1,63 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { PublicHome } from './views/PublicHome';
-import { PublicBrowse } from './views/PublicBrowse';
-import { PublicAlbumView } from './views/PublicAlbumView';
-import { LegalPage } from './views/LegalPage';
-import { AdminLogin } from './views/AdminLogin';
 import { AdminSidebar, AdminTab } from './components/admin/AdminSidebar';
 import { AdminHeader } from './components/admin/AdminHeader';
-import { AdminDashboard } from './views/AdminDashboard';
-import { AdminAlbumsList } from './views/AdminAlbumsList';
-import { AdminAlbumEditor } from './views/AdminAlbumEditor';
-import { AdminAlbumDetail } from './views/AdminAlbumDetail';
-import { AdminMediaList } from './views/AdminMediaList';
-import { AdminUsers } from './views/AdminUsers';
-import { AdminActivityLogs } from './views/AdminActivityLogs';
-import { AdminSettings } from './views/AdminSettings';
-import { AdminStudioContent } from './views/AdminStudioContent';
 import { QRCodeModal } from './components/admin/QRCodeModal';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { LanguageProvider } from './context/LanguageContext';
 import { Album } from './types';
+
+// Code-split route-level bundles for blistering fast initial load
+const PublicBrowse = lazy(() =>
+  import('./views/PublicBrowse').then((m) => ({ default: m.PublicBrowse }))
+);
+const PublicAlbumView = lazy(() =>
+  import('./views/PublicAlbumView').then((m) => ({ default: m.PublicAlbumView }))
+);
+const LegalPage = lazy(() =>
+  import('./views/LegalPage').then((m) => ({ default: m.LegalPage }))
+);
+const AdminLogin = lazy(() =>
+  import('./views/AdminLogin').then((m) => ({ default: m.AdminLogin }))
+);
+const AdminDashboard = lazy(() =>
+  import('./views/AdminDashboard').then((m) => ({ default: m.AdminDashboard }))
+);
+const AdminAlbumsList = lazy(() =>
+  import('./views/AdminAlbumsList').then((m) => ({ default: m.AdminAlbumsList }))
+);
+const AdminAlbumEditor = lazy(() =>
+  import('./views/AdminAlbumEditor').then((m) => ({ default: m.AdminAlbumEditor }))
+);
+const AdminAlbumDetail = lazy(() =>
+  import('./views/AdminAlbumDetail').then((m) => ({ default: m.AdminAlbumDetail }))
+);
+const AdminMediaList = lazy(() =>
+  import('./views/AdminMediaList').then((m) => ({ default: m.AdminMediaList }))
+);
+const AdminStudioContent = lazy(() =>
+  import('./views/AdminStudioContent').then((m) => ({ default: m.AdminStudioContent }))
+);
+const AdminUsers = lazy(() =>
+  import('./views/AdminUsers').then((m) => ({ default: m.AdminUsers }))
+);
+const AdminActivityLogs = lazy(() =>
+  import('./views/AdminActivityLogs').then((m) => ({ default: m.AdminActivityLogs }))
+);
+const AdminSettings = lazy(() =>
+  import('./views/AdminSettings').then((m) => ({ default: m.AdminSettings }))
+);
+
+const RouteLoadingFallback = () => (
+  <div className="min-h-[50vh] flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-150">
+    <div className="w-8 h-8 rounded-full border-2 border-[#DCCB9A] border-t-[#171717] animate-spin mb-3" />
+    <span className="text-[10px] uppercase tracking-[0.25em] text-[#77736B] font-mono">
+      Beki's Studio
+    </span>
+  </div>
+);
 
 function parseAdminPath(path: string): { tab: AdminTab; albumId: string } {
   if (path === '/studio' || path === '/studio/dashboard') {
@@ -65,6 +102,25 @@ function AppContent() {
   const [activeAlbumId, setActiveAlbumId] = useState<string>(() => parseAdminPath(window.location.pathname || '/').albumId);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
+  // Persistent sidebar collapse preference (desktop)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('bekis_admin_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleSidebarCollapse = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('bekis_admin_sidebar_collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
   // QR Modal State
   const [qrModalAlbum, setQrModalAlbum] = useState<Album | null>(null);
 
@@ -73,47 +129,32 @@ function AppContent() {
     const handlePopState = () => {
       const p = window.location.pathname || '/';
       setCurrentPath(p);
-      if (p.startsWith('/studio')) {
-        const parsed = parseAdminPath(p);
-        setAdminTab(parsed.tab);
-        setActiveAlbumId(parsed.albumId);
-      }
+      const { tab, albumId } = parseAdminPath(p);
+      setAdminTab(tab);
+      setActiveAlbumId(albumId);
     };
+
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Internal Router Navigate Function
   const navigate = (path: string) => {
     window.history.pushState({}, '', path);
     setCurrentPath(path);
-    if (path.startsWith('/studio')) {
-      const parsed = parseAdminPath(path);
-      setAdminTab(parsed.tab);
-      setActiveAlbumId(parsed.albumId);
-    }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // Hidden 5-click admin entry gesture callback
-  const handleAdminTrigger = () => {
-    navigate('/studio');
-  };
-
-  const handleOpenAlbumDetail = (id: string) => {
-    if (id) {
-      navigate(`/studio/albums/${id}`);
-    } else {
-      navigate('/studio/albums');
-    }
+    const { tab, albumId } = parseAdminPath(path);
+    setAdminTab(tab);
+    setActiveAlbumId(albumId);
+    window.scrollTo({ top: 0, behavior: 'instant' as any });
   };
 
   const handleSelectAdminTab = (tab: AdminTab) => {
     setAdminTab(tab);
-    if (tab === 'dashboard') navigate('/studio');
+    if (tab === 'dashboard') navigate('/studio/dashboard');
     else if (tab === 'albums') navigate('/studio/albums');
-    else if (tab === 'album-new') {
-      setActiveAlbumId('');
-      navigate('/studio/albums/new');
+    else if (tab === 'album-new') navigate('/studio/albums/new');
+    else if (tab === 'album-detail' && activeAlbumId) {
+      navigate(`/studio/albums/${activeAlbumId}`);
     } else if (tab === 'media') navigate('/studio/media');
     else if (tab === 'content') navigate('/studio/content');
     else if (tab === 'admins') navigate('/studio/admins');
@@ -121,11 +162,21 @@ function AppContent() {
     else if (tab === 'settings') navigate('/studio/settings');
   };
 
+  const handleOpenAlbumDetail = (albumId: string) => {
+    setActiveAlbumId(albumId);
+    setAdminTab('album-detail');
+    navigate(`/studio/albums/${albumId}`);
+  };
+
+  const handleAdminTrigger = () => {
+    navigate('/studio');
+  };
+
   const handleShowQR = (album: Album) => {
     setQrModalAlbum(album);
   };
 
-  // Determine current route
+  // Route matching
   const isStudioRoute = currentPath.startsWith('/studio');
   const isAlbumRoute = currentPath.startsWith('/a/');
   const albumSlug = isAlbumRoute ? currentPath.replace(/^\/a\//, '').split('/')[0] : '';
@@ -133,7 +184,7 @@ function AppContent() {
   // 1. PUBLIC ALBUM VIEW (/a/:slug)
   if (isAlbumRoute && albumSlug) {
     return (
-      <>
+      <Suspense fallback={<RouteLoadingFallback />}>
         <PublicAlbumView
           slug={albumSlug}
           onAdminTrigger={handleAdminTrigger}
@@ -145,14 +196,14 @@ function AppContent() {
           isOpen={!!qrModalAlbum}
           onClose={() => setQrModalAlbum(null)}
         />
-      </>
+      </Suspense>
     );
   }
 
   // 2. DEDICATED PUBLIC BROWSE CATALOG (/albums)
   if (currentPath === '/albums') {
     return (
-      <>
+      <Suspense fallback={<RouteLoadingFallback />}>
         <PublicBrowse
           onAdminTrigger={handleAdminTrigger}
           onOpenAlbumSlug={(slug) => navigate(`/a/${slug}`)}
@@ -163,30 +214,34 @@ function AppContent() {
           isOpen={!!qrModalAlbum}
           onClose={() => setQrModalAlbum(null)}
         />
-      </>
+      </Suspense>
     );
   }
 
   // 3. PRIVACY & TERMS
   if (currentPath === '/privacy') {
     return (
-      <LegalPage
-        type="privacy"
-        onGoHome={() => navigate('/')}
-        onAdminTrigger={handleAdminTrigger}
-        onNavigate={navigate}
-      />
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <LegalPage
+          type="privacy"
+          onGoHome={() => navigate('/')}
+          onAdminTrigger={handleAdminTrigger}
+          onNavigate={navigate}
+        />
+      </Suspense>
     );
   }
 
   if (currentPath === '/terms') {
     return (
-      <LegalPage
-        type="terms"
-        onGoHome={() => navigate('/')}
-        onAdminTrigger={handleAdminTrigger}
-        onNavigate={navigate}
-      />
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <LegalPage
+          type="terms"
+          onGoHome={() => navigate('/')}
+          onAdminTrigger={handleAdminTrigger}
+          onNavigate={navigate}
+        />
+      </Suspense>
     );
   }
 
@@ -208,37 +263,45 @@ function AppContent() {
     // If not authenticated or not authorized, show Studio Login screen
     if (!user || !isAuthorizedAdmin) {
       return (
-        <AdminLogin
-          onSuccess={() => {
-            navigate('/studio');
-          }}
-          onGoBack={() => navigate('/')}
-        />
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <AdminLogin
+            onSuccess={() => {
+              navigate('/studio');
+            }}
+            onGoBack={() => navigate('/')}
+          />
+        </Suspense>
       );
     }
 
     // Authenticated Admin Dashboard Layout
     return (
-      <div className="min-h-screen bg-[#F8F6F0] flex">
-        {/* Sidebar */}
+      <div className="min-h-screen bg-[#F8F6F0] flex text-[#171717]">
+        {/* Desktop & Mobile Admin Sidebar */}
         <AdminSidebar
           currentTab={adminTab}
           onSelectTab={handleSelectAdminTab}
           isOpenMobile={mobileSidebarOpen}
           onCloseMobile={() => setMobileSidebarOpen(false)}
           onPreviewSite={() => navigate('/')}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={handleToggleSidebarCollapse}
         />
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-w-0 lg:pl-72">
+        <div
+          className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out ${
+            isSidebarCollapsed ? 'lg:pl-20' : 'lg:pl-72'
+          }`}
+        >
           <AdminHeader
             title={
               adminTab === 'dashboard'
                 ? 'Dashboard'
                 : adminTab === 'albums'
-                ? 'Albums'
+                ? 'Albums & Events'
                 : adminTab === 'album-new'
-                ? 'Create New Album'
+                ? 'New Album'
                 : adminTab === 'album-detail'
                 ? 'Album Details'
                 : adminTab === 'media'
@@ -246,7 +309,7 @@ function AppContent() {
                 : adminTab === 'content'
                 ? 'Homepage & Assets CMS'
                 : adminTab === 'admins'
-                ? 'Administrators'
+                ? 'Staff & Roles'
                 : adminTab === 'activity'
                 ? 'Activity Logs'
                 : 'Studio Settings'
@@ -254,53 +317,62 @@ function AppContent() {
             onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
             onCreateAlbum={() => navigate('/studio/albums/new')}
             onPreviewSite={() => navigate('/')}
+            onNavigateToTab={(tab, options) => {
+              if (tab === 'album-detail' && options?.albumId) {
+                handleOpenAlbumDetail(options.albumId);
+              } else {
+                handleSelectAdminTab(tab as AdminTab);
+              }
+            }}
           />
 
           <main className="flex-1 pb-16">
-            {adminTab === 'dashboard' && (
-              <AdminDashboard
-                onCreateAlbum={() => navigate('/studio/albums/new')}
-                onOpenAlbum={handleOpenAlbumDetail}
-                onShowQR={handleShowQR}
-                onPreviewPublic={(slug) => navigate(`/a/${slug}`)}
-              />
-            )}
+            <Suspense fallback={<RouteLoadingFallback />}>
+              {adminTab === 'dashboard' && (
+                <AdminDashboard
+                  onCreateAlbum={() => navigate('/studio/albums/new')}
+                  onOpenAlbum={handleOpenAlbumDetail}
+                  onShowQR={handleShowQR}
+                  onPreviewPublic={(slug) => navigate(`/a/${slug}`)}
+                />
+              )}
 
-            {adminTab === 'albums' && (
-              <AdminAlbumsList
-                onCreateAlbum={() => navigate('/studio/albums/new')}
-                onOpenAlbum={handleOpenAlbumDetail}
-                onShowQR={handleShowQR}
-                onPreviewPublic={(slug) => navigate(`/a/${slug}`)}
-              />
-            )}
+              {adminTab === 'albums' && (
+                <AdminAlbumsList
+                  onCreateAlbum={() => navigate('/studio/albums/new')}
+                  onOpenAlbum={handleOpenAlbumDetail}
+                  onShowQR={handleShowQR}
+                  onPreviewPublic={(slug) => navigate(`/a/${slug}`)}
+                />
+              )}
 
-            {adminTab === 'album-new' && (
-              <AdminAlbumEditor
-                existingAlbum={null}
-                onFinished={(id) => handleOpenAlbumDetail(id)}
-                onCancel={() => navigate('/studio/albums')}
-              />
-            )}
+              {adminTab === 'album-new' && (
+                <AdminAlbumEditor
+                  existingAlbum={null}
+                  onFinished={(id) => handleOpenAlbumDetail(id)}
+                  onCancel={() => navigate('/studio/albums')}
+                />
+              )}
 
-            {adminTab === 'album-detail' && activeAlbumId && (
-              <AdminAlbumDetail
-                albumId={activeAlbumId}
-                onBack={() => navigate('/studio/albums')}
-                onShowQR={handleShowQR}
-                onPreviewPublic={(slug) => navigate(`/a/${slug}`)}
-              />
-            )}
+              {adminTab === 'album-detail' && activeAlbumId && (
+                <AdminAlbumDetail
+                  albumId={activeAlbumId}
+                  onBack={() => navigate('/studio/albums')}
+                  onShowQR={handleShowQR}
+                  onPreviewPublic={(slug) => navigate(`/a/${slug}`)}
+                />
+              )}
 
-            {adminTab === 'media' && <AdminMediaList />}
+              {adminTab === 'media' && <AdminMediaList />}
 
-            {adminTab === 'content' && <AdminStudioContent />}
+              {adminTab === 'content' && <AdminStudioContent />}
 
-            {adminTab === 'admins' && <AdminUsers />}
+              {adminTab === 'admins' && <AdminUsers />}
 
-            {adminTab === 'activity' && <AdminActivityLogs />}
+              {adminTab === 'activity' && <AdminActivityLogs />}
 
-            {adminTab === 'settings' && <AdminSettings />}
+              {adminTab === 'settings' && <AdminSettings />}
+            </Suspense>
           </main>
         </div>
 

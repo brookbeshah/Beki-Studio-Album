@@ -252,7 +252,7 @@ export const AdminSettings: React.FC = () => {
     try {
       const removedCount = await purgeAllDemoData();
       if (removedCount > 0) {
-        success(`Cleaned ${removedCount} demo records ("Abe & Lia"). Database is 100% operation-ready!`);
+        success(`Cleaned ${removedCount} demo records. Database is 100% operation-ready!`);
       } else {
         info('Zero demo records found. The database is already clean and operation-ready.');
       }
@@ -751,7 +751,7 @@ export const AdminSettings: React.FC = () => {
 
             <div className="space-y-4">
               <p className="text-xs text-[#77736B] leading-relaxed">
-                Ensure zero demo artifacts remain in your system. This purge utility completely removes any legacy demo collections (such as &ldquo;Abe &amp; Lia&rdquo;) and ensures the platform is 100% operation-ready for production.
+                Ensure zero demo artifacts remain in your system. This purge utility completely removes any legacy test or demo collections and ensures the platform is 100% operation-ready for production.
               </p>
 
               <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -763,7 +763,7 @@ export const AdminSettings: React.FC = () => {
                     isLoading={isClearingDemo}
                     leftIcon={<Trash2 className="w-3.5 h-3.5" />}
                   >
-                    Purge All Demo Data (Abe &amp; Lia)
+                    Purge All Demo Collections
                   </Button>
                 )}
 
