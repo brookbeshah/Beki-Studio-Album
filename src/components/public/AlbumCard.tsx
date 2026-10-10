@@ -11,6 +11,11 @@ interface AlbumCardProps {
 
 export const AlbumCard: React.FC<AlbumCardProps> = ({ album, onOpen, className = '' }) => {
   const { t, formatDate, formatEventType } = useI18n();
+  const [imgLoaded, setImgLoaded] = React.useState(false);
+  const [imgError, setImgError] = React.useState(false);
+
+  // Synchronize cover image URL if album changes
+  const coverUrl = album.coverImageUrl || '';
 
   return (
     <article
@@ -19,16 +24,36 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({ album, onOpen, className =
     >
       {/* Cover Image Container */}
       <div className="relative aspect-4/3 w-full overflow-hidden bg-[#2A2826]">
-        {album.coverImageUrl ? (
-          <img
-            src={album.coverImageUrl}
-            alt={album.title}
-            loading="lazy"
-            className="w-full h-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-105 filter brightness-[0.93] contrast-[1.02]"
-          />
+        {coverUrl && !imgError ? (
+          <>
+            {!imgLoaded && (
+              <div className="absolute inset-0 bg-[#35322F] animate-pulse flex items-center justify-center">
+                <Sparkles className="w-6 h-6 text-[#C8A96B]/30 animate-spin" />
+              </div>
+            )}
+            <img
+              src={coverUrl}
+              alt={album.title}
+              loading="lazy"
+              decoding="async"
+              ref={(img) => {
+                if (img && img.complete && img.naturalWidth > 0 && !imgLoaded) {
+                  setImgLoaded(true);
+                }
+              }}
+              onLoad={() => setImgLoaded(true)}
+              onError={() => setImgError(true)}
+              className={`w-full h-full object-cover object-center transition-opacity duration-500 ease-out group-hover:scale-105 filter brightness-[0.93] contrast-[1.02] ${
+                imgLoaded ? 'opacity-100' : 'opacity-0'
+              }`}
+            />
+          </>
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-[#F8F6F0] text-[#A8A49C]">
-            <Sparkles className="w-8 h-8 text-[#C8A96B]/50" />
+          <div className="w-full h-full flex flex-col items-center justify-center bg-[#2A2826] text-[#A8A49C] p-4 text-center">
+            <Sparkles className="w-8 h-8 text-[#C8A96B]/60 mb-2" />
+            <span className="font-serif text-sm text-[#DCCB9A]/80 tracking-widest uppercase">
+              {album.title}
+            </span>
           </div>
         )}
 

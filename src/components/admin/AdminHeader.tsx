@@ -2,6 +2,7 @@ import React from 'react';
 import { Menu, Plus, ExternalLink } from 'lucide-react';
 import { Button } from '../common/Button';
 import { AdminGlobalSearchBar } from './AdminGlobalSearchBar';
+import { LanguageSelector } from '../common/LanguageSelector';
 
 interface AdminHeaderProps {
   title: string;
@@ -56,6 +57,10 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
 
       {/* Action Buttons */}
       <div className="order-2 md:order-3 flex items-center gap-2 sm:gap-3 shrink-0 ml-auto md:ml-0">
+        <div className="hidden sm:block">
+          <LanguageSelector />
+        </div>
+
         {onPreviewSite && (
           <Button
             variant="outline"

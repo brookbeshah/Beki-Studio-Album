@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Media } from '../../types';
+import { Media, getMediaSource } from '../../types';
 import { X, ChevronLeft, ChevronRight, Download, Maximize2, Minimize2 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { useI18n } from '../../context/LanguageContext';
@@ -188,7 +188,7 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
         {isVideo ? (
           <div className="relative max-w-5xl max-h-[82vh] w-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
             <video
-              src={currentMedia.storagePath}
+              src={getMediaSource(currentMedia)}
               controls
               autoPlay
               playsInline
@@ -197,8 +197,10 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
           </div>
         ) : (
           <img
-            src={currentMedia.optimizedPath || currentMedia.storagePath}
+            src={getMediaSource(currentMedia)}
             alt={currentMedia.altText || 'Wedding photograph'}
+            decoding="async"
+            fetchPriority="high"
             className="max-h-[84vh] max-w-full object-contain rounded-xs shadow-2xl transition-all duration-300 drop-shadow-[0_20px_40px_rgba(0,0,0,0.6)]"
           />
         )}

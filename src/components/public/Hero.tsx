@@ -9,15 +9,20 @@ interface HeroProps {
 }
 
 export const Hero: React.FC<HeroProps> = ({ album, onViewMemories }) => {
-  const { formatDate, formatEventType } = useI18n();
+  const { t, formatDate, formatEventType } = useI18n();
+  const [imgError, setImgError] = React.useState(false);
+
   return (
-    <section className="relative w-full min-h-[92vh] sm:min-h-screen flex flex-col justify-between items-center text-center px-4 sm:px-6 pt-12 pb-16 overflow-hidden bg-[#F8F6F0]">
+    <section className="relative w-full min-h-[92vh] sm:min-h-screen flex flex-col justify-between items-center text-center px-4 sm:px-6 pt-12 pb-16 overflow-hidden bg-[#171717]">
       {/* Background Cover Image with subtle luxury overlay */}
-      {album.coverImageUrl && (
+      {album.coverImageUrl && !imgError && (
         <div className="absolute inset-0 z-0">
           <img
             src={album.coverImageUrl}
             alt={album.title}
+            fetchPriority="high"
+            decoding="async"
+            onError={() => setImgError(true)}
             className="w-full h-full object-cover object-center scale-[1.02] filter brightness-[0.88] contrast-[1.02] transition-transform duration-1000 ease-out"
           />
           {/* Multi-layered luxury gradient: warm ivory blend at top & bottom */}

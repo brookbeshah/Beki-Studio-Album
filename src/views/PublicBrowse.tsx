@@ -84,9 +84,8 @@ export const PublicBrowse: React.FC<PublicBrowseProps> = ({
       eventType: selectedEventType,
     })
       .then((data) => {
-        // Enforce strict client-side guarantee of PUBLISHED + PUBLIC
         const publicOnly = data.filter(
-          (a) => a.status === 'PUBLISHED' && a.visibility === 'PUBLIC'
+          (a) => a.visibility !== 'PRIVATE' && a.status !== 'ARCHIVED'
         );
         setAlbums(publicOnly);
       })

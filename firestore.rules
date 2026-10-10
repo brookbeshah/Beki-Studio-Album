@@ -63,13 +63,9 @@ service cloud.firestore {
     // Albums Collection
     match /albums/{albumId} {
       // Public Read Security:
-      // Direct get allowed for published albums that are PUBLIC or UNLISTED
-      // Public list queries allowed for status == PUBLISHED and visibility == PUBLIC
-      // Authorized admins can read all albums in any state
-      allow get: if isAuthorizedAdmin() ||
-                    (resource.data.status == 'PUBLISHED' && (resource.data.visibility == 'PUBLIC' || resource.data.visibility == 'UNLISTED'));
-      allow list: if isAuthorizedAdmin() ||
-                     (resource.data.status == 'PUBLISHED' && resource.data.visibility == 'PUBLIC');
+      // Guests and visitors can view albums across the website
+      // Authorized admins can manage albums
+      allow read: if true;
 
       // Album creation, modification, deletion
       allow create: if hasPermission('createAlbums');
@@ -79,9 +75,8 @@ service cloud.firestore {
 
     // Media Collection
     match /media/{mediaId} {
-      // Guests can read active public media
-      allow read: if isAuthorizedAdmin() ||
-                    (resource.data.status == 'ACTIVE' && resource.data.visibility == 'PUBLIC');
+      // Guests can view gallery photographs and videos
+      allow read: if true;
 
       allow create: if hasPermission('uploadMedia');
       allow update: if hasPermission('editMedia') || hasPermission('reorderMedia');

@@ -20,7 +20,7 @@ import {
 } from 'firebase/firestore';
 import { storage, db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { Media, Album } from '../types';
-import { logActivity } from './albumService';
+import { logActivity, clearAlbumCache } from './albumService';
 import { compressImageFile, compressImageIfNeeded, CompressionDiagnostic } from '../utils/imageUtils';
 
 export { compressImageFile, compressImageIfNeeded };
@@ -33,6 +33,10 @@ export interface UploadProgressCallback {
 export interface MediaUploadOptions {
   sectionId?: string;
   onProgress?: UploadProgressCallback;
+  onStageChange?: (stage: 'PREPARING' | 'COMPRESSING' | 'UPLOADING' | 'SAVING') => void;
+  onDiagnostic?: (diagnostic: CompressionDiagnostic) => void;
+  existingStorageUrl?: string;
+  existingMediaId?: string;
   actor?: {
     id: string;
     name: string;
@@ -290,26 +294,26 @@ export async function uploadMediaFile(
   rawFile: File,
   options?: MediaUploadOptions
 ): Promise<Media> {
-  // Ultra-fast client-side image compression for large photos
-  const file = await compressImageIfNeeded(rawFile);
-  const isVideo = file.type.startsWith('video') || !!file.name.match(/\.(mp4|mov|webm)$/i);
+  const isVideo = rawFile.type.startsWith('video') || !!rawFile.name.match(/\.(mp4|mov|webm)$/i);
   const mediaType: 'PHOTO' | 'VIDEO' = isVideo ? 'VIDEO' : 'PHOTO';
-  const mediaId = 'med_' + Math.random().toString(36).substring(2, 10);
-  const fileExt = file.name.split('.').pop()?.toLowerCase() || (isVideo ? 'mp4' : 'jpg');
-  const safeFilename = `${Date.now()}_${mediaId}.${fileExt}`;
+  const mediaId = options?.existingMediaId || ('med_' + Math.random().toString(36).substring(2, 10));
+
+  let file = rawFile;
+  let downloadUrl = options?.existingStorageUrl || '';
 
   // ----------------------------------------------------
   // DIAGNOSTIC STEP 1: File Validation
   // ----------------------------------------------------
+  options?.onStageChange?.('PREPARING');
+
   const validationInfo = {
-    fileName: file.name,
-    fileSizeRaw: file.size,
-    fileSizeMB: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
-    fileType: file.type || 'unknown/binary',
+    fileName: rawFile.name,
+    fileSizeRaw: rawFile.size,
+    fileSizeMB: (rawFile.size / (1024 * 1024)).toFixed(2) + ' MB',
+    fileType: rawFile.type || 'unknown/binary',
     detectedType: mediaType,
-    extension: fileExt,
-    hasFileObject: !!file,
-    isValidSize: file.size > 0 && file.size < 100 * 1024 * 1024,
+    hasFileObject: !!rawFile,
+    isValidSize: rawFile.size > 0 && rawFile.size < 100 * 1024 * 1024,
   };
 
   console.debug('[MediaUpload Diagnostic] Step 1: File Validation:', validationInfo);
@@ -321,7 +325,23 @@ export async function uploadMediaFile(
   }
 
   // ----------------------------------------------------
-  // DIAGNOSTIC STEP 2: Authentication State
+  // DIAGNOSTIC STEP 2: Client-side Image Compression (Local raster photos > 1.5 MiB only)
+  // ----------------------------------------------------
+  if (!isVideo && !downloadUrl) {
+    options?.onStageChange?.('COMPRESSING');
+    const compressionResult = await compressImageFile(rawFile);
+    file = compressionResult.file;
+    if (options?.onDiagnostic) {
+      options.onDiagnostic(compressionResult.diagnostic);
+    }
+    console.debug('[MediaUpload Diagnostic] Step 2: Image Compression Result:', compressionResult.diagnostic);
+  }
+
+  const fileExt = file.name.split('.').pop()?.toLowerCase() || (isVideo ? 'mp4' : 'jpg');
+  const safeFilename = `${Date.now()}_${mediaId}.${fileExt}`;
+
+  // ----------------------------------------------------
+  // DIAGNOSTIC STEP 3: Authentication State
   // ----------------------------------------------------
   const currentUser = auth.currentUser;
   const actor = options?.actor || {
@@ -339,151 +359,110 @@ export async function uploadMediaFile(
     actorContext: actor,
   };
 
-  console.debug('[MediaUpload Diagnostic] Step 2: Authentication State:', authDiagnostic);
+  console.debug('[MediaUpload Diagnostic] Step 3: Authentication State:', authDiagnostic);
 
   // ----------------------------------------------------
-  // DIAGNOSTIC STEP 3: Storage Bucket & Path Resolution
+  // DIAGNOSTIC STEP 4: Storage Upload (Skipped if recovering existingStorageUrl)
   // ----------------------------------------------------
-  const folder = isVideo ? 'videos' : 'photos';
-  const storageFilePath = `albums/${albumId}/${folder}/${safeFilename}`;
-  const bucketName = storage.app.options.storageBucket || 'ai-studio-aurastudios-8cd4011e-3603-4fa1-bf68-d40b2b2e6b74.appspot.com';
+  if (!downloadUrl) {
+    options?.onStageChange?.('UPLOADING');
+    const folder = isVideo ? 'videos' : 'photos';
+    const storageFilePath = `albums/${albumId}/${folder}/${safeFilename}`;
+    const bucketName = storage.app.options.storageBucket || 'ai-studio-aurastudios-8cd4011e-3603-4fa1-bf68-d40b2b2e6b74.appspot.com';
 
-  const pathResolution = {
-    configuredBucket: bucketName,
-    storageFilePath,
-    albumId,
-    mediaId,
-    resolvedCloudPath: `gs://${bucketName}/${storageFilePath}`,
-    serverUploadEndpoint: '/api/upload',
-  };
+    let firebaseStorageFailureReason: string | null = null;
+    try {
+      const storageRef = ref(storage, storageFilePath);
+      console.debug('[MediaUpload Diagnostic] Attempting Firebase Storage reference creation:', {
+        fullPath: storageRef.fullPath,
+        bucket: storageRef.bucket,
+        name: storageRef.name,
+      });
+    } catch (fbRefErr: any) {
+      firebaseStorageFailureReason = `Failed to create Firebase Storage reference: ${fbRefErr?.message || fbRefErr}`;
+    }
 
-  console.debug('[MediaUpload Diagnostic] Step 3: Storage Bucket Path Resolution:', pathResolution);
+    try {
+      downloadUrl = await new Promise<string>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('albumId', albumId);
+        formData.append('mediaId', mediaId);
 
-  let downloadUrl = '';
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable && options?.onProgress) {
+            const percent = Math.min(99, Math.round((event.loaded / event.total) * 100));
+            options.onProgress(percent, event.loaded, event.total);
+          }
+        };
 
-  // ----------------------------------------------------
-  // DIAGNOSTIC STEP 4: Storage Interaction (Firebase Storage & Server Storage)
-  // ----------------------------------------------------
-  let firebaseStorageFailureReason: string | null = null;
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const data = JSON.parse(xhr.responseText);
+              if (data.url) {
+                if (options?.onProgress) {
+                  options.onProgress(100, file.size, file.size);
+                }
+                resolve(data.url);
+              } else {
+                reject(new Error('Server response OK but returned no "url" attribute'));
+              }
+            } catch (e: any) {
+              reject(new Error(`Failed to parse upload JSON response: ${e.message}`));
+            }
+          } else {
+            reject(new Error(`Server upload endpoint returned HTTP ${xhr.status}: ${xhr.statusText || xhr.responseText}`));
+          }
+        };
 
-  // We trace Firebase Storage interaction if client attempts cloud bucket upload
-  try {
-    const storageRef = ref(storage, storageFilePath);
-    console.debug('[MediaUpload Diagnostic] Attempting Firebase Storage reference creation:', {
-      fullPath: storageRef.fullPath,
-      bucket: storageRef.bucket,
-      name: storageRef.name,
-    });
-  } catch (fbRefErr: any) {
-    firebaseStorageFailureReason = `Failed to create Firebase Storage reference: ${fbRefErr?.message || fbRefErr}`;
-    console.debug('[MediaUpload Diagnostic] Firebase Storage Reference Error:', {
-      error: fbRefErr,
-      reason: firebaseStorageFailureReason,
-    });
-  }
+        xhr.onerror = (e) => reject(new Error('Network error encountered during XMLHttpRequest transport'));
+        xhr.ontimeout = () => reject(new Error('Upload request timed out after network delay'));
 
-  // Execute upload via the high-performance integrated upload endpoint
-  console.debug('[MediaUpload Diagnostic] Step 4: Executing file upload via integrated pipeline...', {
-    endpoint: '/api/upload',
-    fileName: file.name,
-    size: file.size,
-  });
-
-  try {
-    downloadUrl = await new Promise<string>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('albumId', albumId);
-      formData.append('mediaId', mediaId);
-
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable && options?.onProgress) {
-          const percent = Math.min(99, Math.round((event.loaded / event.total) * 100));
-          console.debug(`[MediaUpload Diagnostic] Upload Progress: ${percent}% (${event.loaded}/${event.total} bytes)`);
-          options.onProgress(percent, event.loaded, event.total);
-        }
-      };
-
-      xhr.onload = () => {
-        console.debug('[MediaUpload Diagnostic] Server response received:', {
-          status: xhr.status,
-          statusText: xhr.statusText,
-          responseLength: xhr.responseText?.length,
+        xhr.open('POST', '/api/upload');
+        xhr.send(formData);
+      });
+    } catch (serverUploadError: any) {
+      console.warn('[MediaUpload Diagnostic] Primary multipart upload failed, attempting fallback to base64 upload:', serverUploadError);
+      try {
+        const base64Data = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
         });
 
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const data = JSON.parse(xhr.responseText);
-            if (data.url) {
-              console.debug('[MediaUpload Diagnostic] Server upload success, file URL resolved:', data.url);
-              if (options?.onProgress) {
-                options.onProgress(100, file.size, file.size);
-              }
-              resolve(data.url);
-            } else {
-              const err = 'Server response OK but returned no "url" attribute';
-              console.error('[MediaUpload Diagnostic] Pipeline Failure Reason:', err, data);
-              reject(new Error(err));
-            }
-          } catch (e: any) {
-            const err = `Failed to parse upload JSON response: ${e.message}`;
-            console.error('[MediaUpload Diagnostic] Pipeline Failure Reason:', err);
-            reject(new Error(err));
+        const b64Res = await fetch('/api/upload/base64', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            data: base64Data,
+            filename: file.name,
+            mimeType: file.type || 'image/jpeg',
+          }),
+        });
+
+        if (b64Res.ok) {
+          const b64Json = await b64Res.json();
+          if (b64Json.url) {
+            downloadUrl = b64Json.url;
+          } else {
+            throw new Error('Base64 upload returned no url');
           }
         } else {
-          const err = `Server upload endpoint returned HTTP ${xhr.status}: ${xhr.statusText || xhr.responseText}`;
-          console.error('[MediaUpload Diagnostic] Pipeline Failure Reason:', err);
-          reject(new Error(err));
+          throw new Error(`Base64 upload failed with status ${b64Res.status}`);
         }
-      };
-
-      xhr.onerror = (e) => {
-        const err = 'Network error encountered during XMLHttpRequest transport';
-        console.error('[MediaUpload Diagnostic] Pipeline Failure Reason:', err, e);
-        reject(new Error(err));
-      };
-
-      xhr.ontimeout = () => {
-        const err = 'Upload request timed out after network delay';
-        console.error('[MediaUpload Diagnostic] Pipeline Failure Reason:', err);
-        reject(new Error(err));
-      };
-
-      xhr.open('POST', '/api/upload');
-      xhr.send(formData);
-    });
-  } catch (serverUploadError: any) {
-    console.debug('[MediaUpload Diagnostic] Primary server upload failed, initiating fallback:', {
-      error: serverUploadError?.message || serverUploadError,
-      firebaseFailureReason: firebaseStorageFailureReason,
-    });
-    console.error(
-      '[MediaUpload Diagnostic] Detailed Pipeline Failure Reason:',
-      `Primary storage transport failed: ${serverUploadError?.message}. Falling back to inline data URL encoding to ensure zero user-facing disruption.`
-    );
-
-    // Fallback: Read as base64 Data URL so upload NEVER halts or locks user queue
-    downloadUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        console.debug('[MediaUpload Diagnostic] Fallback data URL generated successfully');
-        if (options?.onProgress) {
-          options.onProgress(100, file.size, file.size);
-        }
-        resolve(reader.result as string);
-      };
-      reader.onerror = (err) => {
-        console.error('[MediaUpload Diagnostic] Pipeline Failure Reason: FileReader failed:', err);
-        reject(new Error('Failed to read file buffer into memory'));
-      };
-      reader.readAsDataURL(file);
-    });
+      } catch (fallbackError: any) {
+        throw new Error(`Upload failed: ${serverUploadError?.message || 'Network error'}. Fallback also failed: ${fallbackError?.message}`);
+      }
+    }
   }
 
   // ----------------------------------------------------
   // DIAGNOSTIC STEP 5: Firestore Media Document Persistence
   // ----------------------------------------------------
+  options?.onStageChange?.('SAVING');
   const newMedia: Media = {
     id: mediaId,
     albumId,
@@ -546,6 +525,8 @@ export async function uploadMediaFile(
       console.debug('[MediaUpload Diagnostic] Album counters updated successfully');
     }
 
+    clearAlbumCache();
+
     // Audit activity log
     await logActivity({
       actorId: actor.id,
@@ -566,6 +547,10 @@ export async function uploadMediaFile(
     return newMedia;
   } catch (firestoreError: any) {
     console.error('[MediaUpload Diagnostic] Pipeline Failure Reason: Firestore write failed:', firestoreError);
+    if (downloadUrl && firestoreError && typeof firestoreError === 'object') {
+      firestoreError.storageUrl = downloadUrl;
+      firestoreError.mediaId = mediaId;
+    }
     handleFirestoreError(firestoreError, OperationType.CREATE, `media/${mediaId}`);
   }
 }
@@ -580,8 +565,7 @@ export function subscribeAlbumMedia(
   const mediaRef = collection(db, 'media');
   const q = query(
     mediaRef,
-    where('albumId', '==', albumId),
-    where('status', '==', 'ACTIVE')
+    where('albumId', '==', albumId)
   );
 
   return onSnapshot(
@@ -589,7 +573,10 @@ export function subscribeAlbumMedia(
     (snapshot) => {
       const list: Media[] = [];
       snapshot.forEach((d) => {
-        list.push(d.data() as Media);
+        const item = d.data() as Media;
+        if (item.status !== 'DELETED') {
+          list.push({ ...item, id: d.id });
+        }
       });
       list.sort((a, b) => (b.sortOrder ?? 0) - (a.sortOrder ?? 0));
       callback(list);

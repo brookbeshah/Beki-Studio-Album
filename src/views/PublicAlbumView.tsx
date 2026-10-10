@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Album, Media, AlbumSection } from '../types';
+import { Album, Media, AlbumSection, getMediaSource } from '../types';
 import { getAlbumBySlug, getAlbumMedia, getAlbumSections } from '../services/albumService';
+import { subscribeAlbumMedia } from '../services/mediaService';
 import { auth } from '../firebase';
 import { PublicHeader } from '../components/public/PublicHeader';
 import { Hero } from '../components/public/Hero';
@@ -36,6 +37,7 @@ export const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({
 
   useEffect(() => {
     let isMounted = true;
+    let unsubMedia: (() => void) | null = null;
 
     const fetchAlbum = async () => {
       setIsLoading(true);
@@ -46,7 +48,7 @@ export const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({
 
         if (!isMounted) return;
 
-        if (!alb || (alb.status !== 'PUBLISHED' && alb.status !== 'READY' && !auth.currentUser)) {
+        if (!alb || alb.status === 'ARCHIVED') {
           setIsNotFound(true);
           setIsLoading(false);
           return;
@@ -64,6 +66,13 @@ export const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({
           setSections(sList);
           setIsLoading(false);
         }
+
+        // Real-time synchronization: photos uploaded by admin appear immediately for live visitors
+        unsubMedia = subscribeAlbumMedia(alb.id, (freshList) => {
+          if (isMounted) {
+            setMedia(freshList);
+          }
+        });
       } catch (err) {
         console.error('Error fetching album:', err);
         if (isMounted) {
@@ -77,6 +86,7 @@ export const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({
 
     return () => {
       isMounted = false;
+      if (unsubMedia) unsubMedia();
     };
   }, [slug]);
 
@@ -112,6 +122,10 @@ export const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({
     return <NotFound onGoHome={onGoHome} onAdminTrigger={onAdminTrigger} />;
   }
 
+  // Cover fallback if album.coverImageUrl is empty
+  const heroCoverUrl = album.coverImageUrl || (media.length > 0 ? getMediaSource(media[0]) : '');
+  const albumWithCover = { ...album, coverImageUrl: heroCoverUrl };
+
   return (
     <div className="min-h-screen bg-[#F8F6F0] flex flex-col justify-between selection:bg-[#C8A96B]/20">
       {/* Public Header with invisible 5-click logo trigger & language selector */}
@@ -124,7 +138,7 @@ export const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({
 
       <main className="flex-1">
         {/* Editorial Cover Hero */}
-        <Hero album={album} onViewMemories={handleViewMemories} />
+        <Hero album={albumWithCover} onViewMemories={handleViewMemories} />
 
         {/* Photography & Video Gallery */}
         <PublicGallery

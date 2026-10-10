@@ -51,6 +51,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   onToggleCollapse,
 }) => {
   const { adminProfile, role, isSuperAdmin, hasPermission, logout } = useAuth();
+  const { t } = useI18n();
 
   const canCreateAlbum = isSuperAdmin || hasPermission('createAlbums');
 
@@ -67,13 +68,13 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
   // Base navigation items
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'albums', label: 'Albums & Events', icon: Images },
-    { id: 'media', label: 'Media Library', icon: Film },
-    { id: 'content', label: 'Homepage & Assets CMS', icon: Sparkles },
-    ...(isSuperAdmin ? [{ id: 'admins', label: 'Administrators', icon: ShieldCheck }] : []),
-    { id: 'activity', label: 'Activity Logs', icon: History },
-    { id: 'settings', label: 'Studio Settings', icon: Settings },
+    { id: 'dashboard', label: t('nav.dashboard') || t('admin.dashboard') || 'Dashboard', icon: LayoutDashboard },
+    { id: 'albums', label: t('nav.albums') || t('admin.albums') || 'Albums & Events', icon: Images },
+    { id: 'media', label: t('nav.media') || t('admin.media') || 'Media Library', icon: Film },
+    { id: 'content', label: t('nav.content') || t('admin.content') || 'Homepage & Assets CMS', icon: Sparkles },
+    ...(isSuperAdmin ? [{ id: 'admins', label: t('nav.admins') || t('admin.administrators') || 'Administrators', icon: ShieldCheck }] : []),
+    { id: 'activity', label: t('nav.activity') || t('admin.activity') || 'Activity Logs', icon: History },
+    { id: 'settings', label: t('nav.settings') || t('admin.settings') || 'Studio Settings', icon: Settings },
   ];
 
   return (
@@ -236,6 +237,10 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         <div className="p-3.5 sm:p-4 border-t border-[#E8E0D0] bg-[#F8F6F0]/80">
           {!isCollapsed ? (
             <>
+              <div className="mb-3">
+                <LanguageSelector />
+              </div>
+
               <div className="flex items-center justify-between mb-3">
                 <div className="min-w-0 flex-1 pr-2">
                   <p className="text-xs font-semibold text-[#171717] truncate">
@@ -258,6 +263,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             </>
           ) : (
             <div className="flex flex-col items-center gap-2">
+              <div className="scale-85 origin-center">
+                <LanguageSelector />
+              </div>
               <button
                 onClick={() => logout()}
                 className="w-10 h-10 flex items-center justify-center rounded-xs text-[#77736B] hover:text-red-700 hover:bg-red-50/50 border border-[#E8E0D0] transition-colors cursor-pointer group relative"

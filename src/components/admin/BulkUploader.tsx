@@ -11,12 +11,19 @@ import {
   Plus,
   Eye,
   Check,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '../common/Button';
 import { AlbumSection } from '../../types';
-import { uploadMediaFile, addMediaFromUrl, validateImageUrl } from '../../services/mediaService';
+import {
+  uploadMediaFile,
+  addMediaFromUrl,
+  validateImageUrl,
+  CompressionDiagnostic,
+} from '../../services/mediaService';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useI18n } from '../../context/LanguageContext';
 
 interface UploadFileItem {
   id: string;
@@ -26,9 +33,12 @@ interface UploadFileItem {
   type: 'PHOTO' | 'VIDEO';
   progress: number;
   bytesTransferred: number;
-  status: 'WAITING' | 'UPLOADING' | 'COMPLETE' | 'FAILED';
+  status: 'WAITING' | 'PREPARING' | 'COMPRESSING' | 'UPLOADING' | 'SAVING' | 'COMPLETE' | 'FAILED';
   previewUrl?: string;
   errorMessage?: string;
+  storageUrl?: string;
+  mediaId?: string;
+  diagnostic?: CompressionDiagnostic;
 }
 
 interface BulkUploaderProps {
@@ -44,6 +54,7 @@ export const BulkUploader: React.FC<BulkUploaderProps> = ({
 }) => {
   const { adminProfile, user } = useAuth();
   const { success, error, info } = useToast();
+  const { t } = useI18n();
 
   const [uploadMode, setUploadMode] = useState<'file' | 'url'>('file');
 
@@ -137,13 +148,25 @@ export const BulkUploader: React.FC<BulkUploaderProps> = ({
     actor: { id: string; name: string; email: string }
   ) => {
     setQueue((prev) =>
-      prev.map((it) => (it.id === item.id ? { ...it, status: 'UPLOADING', progress: 5 } : it))
+      prev.map((it) => (it.id === item.id ? { ...it, status: 'PREPARING', progress: 5 } : it))
     );
 
     try {
       await uploadMediaFile(albumId, item.file, {
         sectionId: selectedSectionId,
         actor,
+        existingStorageUrl: item.storageUrl,
+        existingMediaId: item.mediaId,
+        onStageChange: (stage) => {
+          setQueue((prev) =>
+            prev.map((it) => (it.id === item.id ? { ...it, status: stage } : it))
+          );
+        },
+        onDiagnostic: (diagnostic) => {
+          setQueue((prev) =>
+            prev.map((it) => (it.id === item.id ? { ...it, diagnostic } : it))
+          );
+        },
         onProgress: (percent, bytesTransferred) => {
           setQueue((prev) =>
             prev.map((it) =>
@@ -161,12 +184,16 @@ export const BulkUploader: React.FC<BulkUploaderProps> = ({
       return true;
     } catch (err: any) {
       console.error('[Upload Failed]', item.name, err);
+      const storageUrl = err?.storageUrl || item.storageUrl;
+      const mediaId = err?.mediaId || item.mediaId;
       setQueue((prev) =>
         prev.map((it) =>
           it.id === item.id
             ? {
                 ...it,
                 status: 'FAILED',
+                storageUrl,
+                mediaId,
                 errorMessage: err?.message || 'Storage upload error',
               }
             : it
@@ -550,9 +577,31 @@ export const BulkUploader: React.FC<BulkUploaderProps> = ({
                           }
                         >
                           {item.status === 'WAITING' && 'Waiting in queue...'}
-                          {item.status === 'UPLOADING' && `Uploading: ${item.progress}%`}
-                          {item.status === 'COMPLETE' && 'Complete'}
-                          {item.status === 'FAILED' && (item.errorMessage || 'Upload failed')}
+                          {item.status === 'PREPARING' && 'Preparing file...'}
+                          {item.status === 'COMPRESSING' && (
+                            <span className="inline-flex items-center gap-1 text-[#C8A96B] font-medium">
+                              <Sparkles className="w-3 h-3 animate-spin" />
+                              <span>Optimizing image ({formatFileSize(item.size)} &gt; 1.5 MB)...</span>
+                            </span>
+                          )}
+                          {item.status === 'UPLOADING' && `Uploading: ${item.progress}% (${formatFileSize(item.bytesTransferred || 0)} / ${formatFileSize(item.size)})`}
+                          {item.status === 'SAVING' && 'Saving metadata to gallery...'}
+                          {item.status === 'COMPLETE' && (
+                            <span className="inline-flex items-center gap-1.5">
+                              <span>Complete</span>
+                              {item.diagnostic?.processed && item.diagnostic.reductionPercentage && item.diagnostic.reductionPercentage > 0 ? (
+                                <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-2xs border border-emerald-200">
+                                  Saved {item.diagnostic.reductionPercentage}% ({formatFileSize(item.diagnostic.compressedSize)})
+                                </span>
+                              ) : null}
+                            </span>
+                          )}
+                          {item.status === 'FAILED' && (
+                            <span>
+                              {item.errorMessage || 'Upload failed'}
+                              {item.storageUrl ? ' (File safe in cloud — click retry to link metadata)' : ''}
+                            </span>
+                          )}
                         </span>
                       </div>
                     </div>

@@ -144,3 +144,4 @@ export function useI18n() {
 }
 
 export const useTranslation = useI18n;
+export const useLanguage = useI18n;

@@ -117,6 +117,10 @@ export interface Media {
 export function getMediaSource(media?: Partial<Media> | null): string {
   if (!media) return '';
   if (media.sourceType === 'URL' && media.url) return media.url;
+  // If the media item has an ID and raw data URI, prefer the high-speed static uploaded file
+  if (media.id && media.storagePath?.startsWith('data:image/')) {
+    return `/uploads/${media.id}.jpg`;
+  }
   return media.optimizedPath || media.storagePath || media.url || media.thumbnailPath || '';
 }
 

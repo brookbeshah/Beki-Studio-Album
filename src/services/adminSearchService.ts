@@ -143,9 +143,12 @@ export async function searchAdminEverything(rawQuery: string): Promise<{
         const slugMatch = (a.slug || '').toLowerCase().includes(queryText);
         const locMatch = (a.location || '').toLowerCase().includes(queryText);
         const typeMatch = (a.eventType || '').toLowerCase().includes(queryText);
+        const coupleMatch = (a.coupleName || '').toLowerCase().includes(queryText);
         const clientMatch =
-          (a.clientNames && a.clientNames.some((c) => c.toLowerCase().includes(queryText))) || false;
-        return titleMatch || slugMatch || locMatch || typeMatch || clientMatch;
+          (Array.isArray((a as any).clientNames) &&
+            (a as any).clientNames.some((c: string) => c.toLowerCase().includes(queryText))) ||
+          false;
+        return titleMatch || slugMatch || locMatch || typeMatch || coupleMatch || clientMatch;
       })
       .slice(0, 8)
       .map((a) => ({
