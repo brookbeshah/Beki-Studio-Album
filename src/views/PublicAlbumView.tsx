@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Album, Media, AlbumSection, getMediaSource } from '../types';
 import { getAlbumBySlug, getAlbumMedia, getAlbumSections } from '../services/albumService';
 import { subscribeAlbumMedia } from '../services/mediaService';
-import { auth } from '../firebase';
+import { resolveMediaList, resolveAlbumCoverUrl } from '../utils/mediaResolver';
 import { PublicHeader } from '../components/public/PublicHeader';
 import { Hero } from '../components/public/Hero';
 import { PublicGallery } from '../components/public/PublicGallery';
@@ -28,23 +28,26 @@ export const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({
   const [album, setAlbum] = useState<Album | null>(null);
   const [media, setMedia] = useState<Media[]>([]);
   const [sections, setSections] = useState<AlbumSection[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isNotFound, setIsNotFound] = useState(false);
+  const [resolvedCoverUrl, setResolvedCoverUrl] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isNotFound, setIsNotFound] = useState<boolean>(false);
 
-  // Viewer state
-  const [viewerOpen, setViewerOpen] = useState(false);
-  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+  // Fullscreen Viewer state
+  const [viewerOpen, setViewerOpen] = useState<boolean>(false);
+  const [currentMediaIndex, setCurrentMediaIndex] = useState<number>(0);
 
   useEffect(() => {
     let isMounted = true;
     let unsubMedia: (() => void) | null = null;
 
-    const fetchAlbum = async () => {
+    const loadPublicAlbumData = async () => {
       setIsLoading(true);
       setIsNotFound(false);
 
       try {
-        let alb = await getAlbumBySlug(slug);
+        // 1. Fetch album record by slug (or fallback by ID)
+        // Public route: NO authentication check or user requirement
+        const alb = await getAlbumBySlug(slug);
 
         if (!isMounted) return;
 
@@ -56,25 +59,59 @@ export const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({
 
         setAlbum(alb);
 
-        const [mList, sList] = await Promise.all([
-          getAlbumMedia(alb.id),
-          getAlbumSections(alb.id),
+        // 2. Concurrently fetch media list and sections
+        const [rawMediaList, rawSections] = await Promise.all([
+          getAlbumMedia(alb.id).catch((err) => {
+            console.warn('[PublicAlbumView] Non-fatal media fetch fallback:', err);
+            return [] as Media[];
+          }),
+          getAlbumSections(alb.id).catch((err) => {
+            console.warn('[PublicAlbumView] Non-fatal sections fetch fallback:', err);
+            return [] as AlbumSection[];
+          }),
+        ]);
+
+        if (!isMounted) return;
+
+        // 3. Progressive Loading: Display raw media & sections immediately so low-resolution
+        // placeholders and initial UI render with zero blocking!
+        setMedia(rawMediaList);
+        setSections(rawSections);
+        setIsLoading(false);
+
+        // 4. Asynchronously resolve Firebase Storage download URLs in the background
+        const [resolvedMedia, cover] = await Promise.all([
+          resolveMediaList(rawMediaList),
+          resolveAlbumCoverUrl(alb, rawMediaList),
         ]);
 
         if (isMounted) {
-          setMedia(mList);
-          setSections(sList);
-          setIsLoading(false);
+          setMedia(resolvedMedia);
+          if (cover) {
+            setResolvedCoverUrl(cover);
+          }
         }
 
-        // Real-time synchronization: photos uploaded by admin appear immediately for live visitors
-        unsubMedia = subscribeAlbumMedia(alb.id, (freshList) => {
+        // 5. Real-time synchronization: photos uploaded by admin appear immediately for live visitors
+        unsubMedia = subscribeAlbumMedia(alb.id, async (freshList) => {
+          if (!isMounted) return;
+          // Render immediate list first
+          setMedia(freshList);
+          // Then resolve any storage references
+          const freshResolved = await resolveMediaList(freshList);
           if (isMounted) {
-            setMedia(freshList);
+            setMedia(freshResolved);
+            // Refresh cover if not yet established
+            if (!cover) {
+              const updatedCover = await resolveAlbumCoverUrl(alb, freshResolved);
+              if (isMounted && updatedCover) {
+                setResolvedCoverUrl(updatedCover);
+              }
+            }
           }
         });
       } catch (err) {
-        console.error('Error fetching album:', err);
+        console.error('[PublicAlbumView Error]:', err);
         if (isMounted) {
           setIsNotFound(true);
           setIsLoading(false);
@@ -82,11 +119,13 @@ export const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({
       }
     };
 
-    fetchAlbum();
+    loadPublicAlbumData();
 
     return () => {
       isMounted = false;
-      if (unsubMedia) unsubMedia();
+      if (unsubMedia) {
+        unsubMedia();
+      }
     };
   }, [slug]);
 
@@ -102,29 +141,41 @@ export const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({
     setViewerOpen(true);
   };
 
+  // Prepare album data with fully resolved cover image URL
+  const albumWithResolvedCover = useMemo(() => {
+    if (!album) return null;
+    const cover =
+      resolvedCoverUrl ||
+      album.coverImageUrl ||
+      (media.length > 0 ? getMediaSource(media[0]) : '');
+    return {
+      ...album,
+      coverImageUrl: cover,
+    };
+  }, [album, resolvedCoverUrl, media]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#F8F6F0] flex flex-col justify-center items-center">
         <div className="text-center space-y-4">
           <div className="w-10 h-10 border-2 border-[#DCCB9A] border-t-[#C8A96B] rounded-full animate-spin mx-auto" />
-          <p className="font-serif text-lg text-[#171717] tracking-widest uppercase">
+          <p
+            className="font-serif text-lg text-[#171717] tracking-widest uppercase font-light"
+            style={{ fontFamily: "'Cormorant Garamond', 'Playfair Display', serif" }}
+          >
             BEKI'S STUDIO
           </p>
           <span className="text-[11px] uppercase tracking-[0.25em] text-[#77736B]">
-            {t('album.openingMemories')}
+            {t('album.openingMemories') || 'Opening memories...'}
           </span>
         </div>
       </div>
     );
   }
 
-  if (isNotFound || !album) {
+  if (isNotFound || !album || !albumWithResolvedCover) {
     return <NotFound onGoHome={onGoHome} onAdminTrigger={onAdminTrigger} />;
   }
-
-  // Cover fallback if album.coverImageUrl is empty
-  const heroCoverUrl = album.coverImageUrl || (media.length > 0 ? getMediaSource(media[0]) : '');
-  const albumWithCover = { ...album, coverImageUrl: heroCoverUrl };
 
   return (
     <div className="min-h-screen bg-[#F8F6F0] flex flex-col justify-between selection:bg-[#C8A96B]/20">
@@ -138,9 +189,12 @@ export const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({
 
       <main className="flex-1">
         {/* Editorial Cover Hero */}
-        <Hero album={albumWithCover} onViewMemories={handleViewMemories} />
+        <Hero
+          album={albumWithResolvedCover}
+          onViewMemories={handleViewMemories}
+        />
 
-        {/* Photography & Video Gallery */}
+        {/* Photography & Video Gallery with progressive loading */}
         <PublicGallery
           media={media}
           sections={sections}
@@ -148,7 +202,7 @@ export const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({
         />
       </main>
 
-      {/* Fullscreen Editorial Media Viewer */}
+      {/* Fullscreen Editorial Media Viewer with prefetching */}
       <MediaViewer
         media={media}
         currentIndex={currentMediaIndex}
@@ -158,7 +212,7 @@ export const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({
         onNavigate={(idx) => setCurrentMediaIndex(idx)}
       />
 
-      {/* Minimal Footer */}
+      {/* Minimal Luxury Footer */}
       <PublicFooter
         onAdminTrigger={onAdminTrigger}
         onNavigate={onNavigate}
@@ -167,3 +221,4 @@ export const PublicAlbumView: React.FC<PublicAlbumViewProps> = ({
     </div>
   );
 };
+export default PublicAlbumView;

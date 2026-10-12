@@ -1,4 +1,5 @@
-import express, { Request, Response, NextFunction } from 'express';
+import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
@@ -21,8 +22,17 @@ if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
-// Serve uploaded media statically
-app.use('/uploads', express.static(UPLOADS_DIR));
+// Serve uploaded media statically with aggressive browser-side caching headers
+app.use(
+  '/uploads',
+  express.static(UPLOADS_DIR, {
+    maxAge: '1y',
+    immutable: true,
+    setHeaders: (res) => {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    },
+  })
+);
 
 // Configure multer for disk storage
 const storage = multer.diskStorage({
@@ -43,7 +53,7 @@ const upload = multer({
   },
 });
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = 3000;
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Authoritative Super Admin configuration strictly on server-side

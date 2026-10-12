@@ -2,6 +2,7 @@ import React from 'react';
 import { Album } from '../../types';
 import { useI18n } from '../../context/LanguageContext';
 import { ArrowDown } from 'lucide-react';
+import { useOptimizedImage } from '../../hooks/useOptimizedImage';
 
 interface HeroProps {
   album: Album;
@@ -10,20 +11,32 @@ interface HeroProps {
 
 export const Hero: React.FC<HeroProps> = ({ album, onViewMemories }) => {
   const { t, formatDate, formatEventType } = useI18n();
-  const [imgError, setImgError] = React.useState(false);
+
+  // Progressive loading for the editorial cover image
+  const {
+    currentSrc,
+    isLoaded,
+    isLowRes,
+    hasError,
+  } = useOptimizedImage({
+    src: album.coverImageUrl || null,
+    lowResSrc: album.coverImageUrl || null,
+    fetchPriority: 'high',
+  });
 
   return (
     <section className="relative w-full min-h-[92vh] sm:min-h-screen flex flex-col justify-between items-center text-center px-4 sm:px-6 pt-12 pb-16 overflow-hidden bg-[#171717]">
-      {/* Background Cover Image with subtle luxury overlay */}
-      {album.coverImageUrl && !imgError && (
+      {/* Background Cover Image with subtle luxury overlay & progressive crossfade */}
+      {currentSrc && !hasError && (
         <div className="absolute inset-0 z-0">
           <img
-            src={album.coverImageUrl}
+            src={currentSrc}
             alt={album.title}
             fetchPriority="high"
             decoding="async"
-            onError={() => setImgError(true)}
-            className="w-full h-full object-cover object-center scale-[1.02] filter brightness-[0.88] contrast-[1.02] transition-transform duration-1000 ease-out"
+            className={`w-full h-full object-cover object-center scale-[1.02] filter brightness-[0.88] contrast-[1.02] transition-all duration-1000 ease-out ${
+              isLowRes ? 'filter blur-[8px] scale-[1.04]' : 'filter blur-0 scale-[1.02]'
+            }`}
           />
           {/* Multi-layered luxury gradient: warm ivory blend at top & bottom */}
           <div className="absolute inset-0 bg-gradient-to-b from-[#171717]/60 via-[#171717]/30 to-[#171717]/85" />
@@ -96,3 +109,5 @@ export const Hero: React.FC<HeroProps> = ({ album, onViewMemories }) => {
     </section>
   );
 };
+
+export default Hero;

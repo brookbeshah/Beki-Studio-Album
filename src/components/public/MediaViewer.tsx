@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Media, getMediaSource } from '../../types';
-import { X, ChevronLeft, ChevronRight, Download, Maximize2, Minimize2 } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Download, Maximize2, Minimize2, Image as ImageIcon } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { useI18n } from '../../context/LanguageContext';
+import { resolveStorageUrl } from '../../utils/mediaResolver';
+import { useOptimizedImage } from '../../hooks/useOptimizedImage';
 
 interface MediaViewerProps {
   media: Media[];
@@ -25,10 +27,75 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
   const { t } = useI18n();
   const [controlsVisible, setControlsVisible] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [videoSrc, setVideoSrc] = useState<string>('');
+  const [videoError, setVideoError] = useState(false);
   const touchStartXRef = useRef<number | null>(null);
   const touchEndXRef = useRef<number | null>(null);
 
   const currentMedia = media[currentIndex];
+  const isVideo = currentMedia?.type === 'VIDEO';
+
+  // Photo source resolution using progressive loading hook
+  const photoHighRes = !isVideo && currentMedia
+    ? currentMedia.optimizedPath || currentMedia.storagePath || currentMedia.url || ''
+    : '';
+  const photoLowRes = !isVideo && currentMedia
+    ? currentMedia.thumbnailPath || currentMedia.optimizedPath || currentMedia.storagePath || currentMedia.url || ''
+    : '';
+
+  const {
+    currentSrc: photoCurrentSrc,
+    isLoaded: photoIsLoaded,
+    isLowRes: photoIsLowRes,
+    hasError: photoHasError,
+    resolvedHighResSrc,
+    prefetchNext,
+  } = useOptimizedImage({
+    src: photoHighRes,
+    lowResSrc: photoLowRes,
+    fetchPriority: 'high',
+  });
+
+  // Resolve video URL if needed
+  useEffect(() => {
+    let active = true;
+    if (!currentMedia || !isVideo) {
+      setVideoSrc('');
+      setVideoError(false);
+      return;
+    }
+
+    const initSrc = getMediaSource(currentMedia);
+    setVideoSrc(initSrc);
+    setVideoError(false);
+
+    const target = currentMedia.storagePath || currentMedia.url || initSrc;
+    if (target) {
+      resolveStorageUrl(target).then((resolved) => {
+        if (active && resolved) {
+          setVideoSrc(resolved);
+        }
+      });
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [currentMedia, isVideo]);
+
+  // Aggressive prefetching of adjacent photographs (previous and next)
+  useEffect(() => {
+    if (!isOpen || media.length <= 1) return;
+    const nextIdx = (currentIndex + 1) % media.length;
+    const prevIdx = (currentIndex - 1 + media.length) % media.length;
+
+    const adjacentTargets = [
+      media[nextIdx]?.optimizedPath || media[nextIdx]?.storagePath || media[nextIdx]?.url,
+      media[prevIdx]?.optimizedPath || media[prevIdx]?.storagePath || media[prevIdx]?.url,
+    ].filter(Boolean);
+
+    prefetchNext(adjacentTargets);
+  }, [currentIndex, isOpen, media, prefetchNext]);
 
   const handleNext = useCallback(() => {
     if (currentIndex < media.length - 1) {
@@ -42,25 +109,11 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
     if (currentIndex > 0) {
       onNavigate(currentIndex - 1);
     } else {
-      onNavigate(media.length - 1); // Loop to end
+      onNavigate(media.length - 1); // Loop back
     }
   }, [currentIndex, media.length, onNavigate]);
 
-  // Keyboard navigation
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowRight') handleNext();
-      if (e.key === 'ArrowLeft') handlePrev();
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, handleNext, handlePrev]);
-
-  // Mobile Touch Swipe
+  // Touch Swipe for mobile devices
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartXRef.current = e.targetTouches[0].clientX;
   };
@@ -70,100 +123,134 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
   };
 
   const handleTouchEnd = () => {
-    if (touchStartXRef.current === null || touchEndXRef.current === null) return;
-    const diff = touchStartXRef.current - touchEndXRef.current;
+    if (!touchStartXRef.current || !touchEndXRef.current) return;
+    const distance = touchStartXRef.current - touchEndXRef.current;
     const minSwipeDistance = 50;
 
-    if (diff > minSwipeDistance) {
-      handleNext(); // Swiped left
-    } else if (diff < -minSwipeDistance) {
-      handlePrev(); // Swiped right
+    if (distance > minSwipeDistance) {
+      handleNext();
+    } else if (distance < -minSwipeDistance) {
+      handlePrev();
     }
 
     touchStartXRef.current = null;
     touchEndXRef.current = null;
   };
 
-  const handleDownload = async () => {
-    if (!currentMedia) return;
-    try {
-      info(t('viewer.preparingDownload'));
-      const response = await fetch(currentMedia.storagePath);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = currentMedia.originalFileName || `bekis-studio-memory-${currentIndex + 1}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch {
-      // Direct window download fallback
-      const link = document.createElement('a');
-      link.href = currentMedia.storagePath;
-      link.download = currentMedia.originalFileName;
-      link.target = '_blank';
-      link.click();
+  // Keyboard navigation
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      } else if (e.key === 'ArrowRight') {
+        handleNext();
+      } else if (e.key === 'ArrowLeft') {
+        handlePrev();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, handleNext, handlePrev, onClose]);
+
+  // Lock scroll when open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
     }
-  };
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
+  if (!isOpen || !currentMedia) return null;
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {});
       setIsFullscreen(true);
     } else {
-      document.exitFullscreen().catch(() => {});
-      setIsFullscreen(false);
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+        setIsFullscreen(false);
+      }
     }
   };
 
-  if (!isOpen || !currentMedia) return null;
+  const handleDownload = async () => {
+    try {
+      info(t('viewer.downloadStarting') || 'Starting download...');
+      const downloadSrc = isVideo
+        ? videoSrc || getMediaSource(currentMedia)
+        : resolvedHighResSrc || photoCurrentSrc || getMediaSource(currentMedia);
 
-  const isVideo = currentMedia.type === 'VIDEO';
+      const response = await fetch(downloadSrc);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = currentMedia.originalFileName || `bekis-memory-${currentMedia.id}.${isVideo ? 'mp4' : 'jpg'}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      console.warn('Direct blob download failed, falling back to window location:', e);
+      const downloadSrc = isVideo ? videoSrc : (resolvedHighResSrc || photoCurrentSrc);
+      if (downloadSrc) {
+        const link = document.createElement('a');
+        link.href = downloadSrc;
+        link.download = currentMedia.originalFileName || `memory-${currentMedia.id}`;
+        link.target = '_blank';
+        link.click();
+      }
+    }
+  };
+
+  const hasMediaError = isVideo ? videoError : photoHasError;
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-[#121212]/95 backdrop-blur-md flex flex-col justify-between select-none animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 bg-[#0E0E0E]/95 backdrop-blur-md flex flex-col justify-between selection:bg-transparent"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Top Bar with Counter and Actions */}
+      {/* Top Bar with metadata and controls */}
       <div
-        className={`w-full flex items-center justify-between px-4 sm:px-8 py-4 sm:py-6 z-20 transition-opacity duration-300 ${
+        className={`w-full px-4 sm:px-8 py-4 flex items-center justify-between text-[#F8F6F0] z-20 transition-opacity duration-300 ${
           controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
-        {/* Media Counter */}
-        <div className="flex items-center gap-3">
-          <span className="text-xs sm:text-sm tracking-[0.25em] uppercase text-[#F8F6F0]/80 font-light">
-            {currentIndex + 1} <span className="text-[#C8A96B] mx-1">/</span> {media.length}
+        <div className="flex flex-col">
+          <span className="text-xs uppercase tracking-[0.25em] text-[#C8A96B] font-light">
+            {currentIndex + 1} / {media.length}
           </span>
-          {currentMedia.altText && (
-            <span className="hidden md:inline text-xs text-[#A8A49C] tracking-wider truncate max-w-sm pl-3 border-l border-white/20 font-light">
-              {currentMedia.altText}
-            </span>
-          )}
+          <span className="font-serif text-sm sm:text-base text-[#F8F6F0]/90 font-light truncate max-w-xs sm:max-w-md">
+            {currentMedia.altText || currentMedia.originalFileName || 'Photograph'}
+          </span>
         </div>
 
-        {/* Action Controls */}
         <div className="flex items-center gap-2 sm:gap-4">
           {allowDownloads && (
             <button
               onClick={handleDownload}
               className="p-2 sm:p-2.5 rounded-full text-[#F8F6F0]/80 hover:text-[#FFFFFF] hover:bg-white/10 transition-colors cursor-pointer"
-              title="Download memory"
-              aria-label="Download media"
+              title={t('viewer.downloadOriginal') || 'Download'}
+              aria-label="Download photograph"
             >
-              <Download className="w-5 h-5" />
+              <Download className="w-5 h-5 text-[#C8A96B]" />
             </button>
           )}
 
           <button
             onClick={toggleFullscreen}
-            className="hidden sm:inline-flex p-2 sm:p-2.5 rounded-full text-[#F8F6F0]/80 hover:text-[#FFFFFF] hover:bg-white/10 transition-colors cursor-pointer"
-            title="Fullscreen"
+            className="hidden sm:inline-flex p-2.5 rounded-full text-[#F8F6F0]/80 hover:text-[#FFFFFF] hover:bg-white/10 transition-colors cursor-pointer"
+            title="Toggle fullscreen"
             aria-label="Toggle fullscreen"
           >
             {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
@@ -185,23 +272,37 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
         className="flex-1 relative flex items-center justify-center p-2 sm:p-8 overflow-hidden"
         onClick={() => setControlsVisible((prev) => !prev)}
       >
-        {isVideo ? (
-          <div className="relative max-w-5xl max-h-[82vh] w-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+        {hasMediaError ? (
+          <div className="flex flex-col items-center justify-center text-[#A8A49C] p-8 text-center bg-white/5 rounded-xs border border-white/10">
+            <ImageIcon className="w-12 h-12 text-[#C8A96B]/60 mb-3" />
+            <span className="text-sm uppercase tracking-wider text-[#F8F6F0]/80">
+              {currentMedia.altText || currentMedia.originalFileName || 'Memory'}
+            </span>
+          </div>
+        ) : isVideo ? (
+          <div
+            className="relative max-w-5xl max-h-[82vh] w-full flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
             <video
-              src={getMediaSource(currentMedia)}
+              src={videoSrc}
               controls
               autoPlay
               playsInline
+              onError={() => setVideoError(true)}
               className="max-h-[80vh] max-w-full rounded-xs shadow-2xl object-contain border border-[#C8A96B]/30"
             />
           </div>
         ) : (
+          /* Progressive High-Resolution Photo Display */
           <img
-            src={getMediaSource(currentMedia)}
+            src={photoCurrentSrc}
             alt={currentMedia.altText || 'Wedding photograph'}
             decoding="async"
             fetchPriority="high"
-            className="max-h-[84vh] max-w-full object-contain rounded-xs shadow-2xl transition-all duration-300 drop-shadow-[0_20px_40px_rgba(0,0,0,0.6)]"
+            className={`max-h-[84vh] max-w-full object-contain rounded-xs shadow-2xl transition-all duration-500 drop-shadow-[0_20px_40px_rgba(0,0,0,0.6)] ${
+              photoIsLowRes ? 'filter blur-[6px] scale-[1.01]' : 'filter blur-0 scale-100'
+            }`}
           />
         )}
       </div>
@@ -246,3 +347,5 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
     </div>
   );
 };
+
+export default MediaViewer;

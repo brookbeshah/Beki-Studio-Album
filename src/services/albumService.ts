@@ -551,14 +551,12 @@ export async function getAlbums(options?: {
     const albumsRef = collection(db, 'albums');
     let q;
 
-    if (auth.currentUser) {
-      if (options?.status) {
-        q = query(albumsRef, where('status', '==', options.status));
-      } else {
-        q = albumsRef;
-      }
-    } else {
+    if (options?.status) {
+      q = query(albumsRef, where('status', '==', options.status));
+    } else if (!auth.currentUser) {
       q = query(albumsRef, where('status', '==', 'PUBLISHED'));
+    } else {
+      q = albumsRef;
     }
 
     const snapshot = await getDocs(q);
@@ -1006,7 +1004,8 @@ export async function getAlbumSections(albumId: string): Promise<AlbumSection[]>
     list.sort((a, b) => a.sortOrder - b.sortOrder);
     return list;
   } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, `albumSections?albumId=${albumId}`);
+    console.warn('[getAlbumSections Warning]:', error);
+    return [];
   }
 }
 

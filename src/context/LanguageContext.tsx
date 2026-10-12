@@ -17,16 +17,20 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [locale, setLocaleState] = useState<SupportedLocale>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY) as SupportedLocale;
-    if (saved && (saved === 'en' || saved === 'am' || saved === 'ti' || saved === 'om')) {
-      return saved;
-    }
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY) as SupportedLocale;
+      if (saved && (saved === 'en' || saved === 'am' || saved === 'ti' || saved === 'om')) {
+        return saved;
+      }
+    } catch {}
     return 'en';
   });
 
   const setLanguage = useCallback((lang: SupportedLocale) => {
     setLocaleState(lang);
-    localStorage.setItem(STORAGE_KEY, lang);
+    try {
+      localStorage.setItem(STORAGE_KEY, lang);
+    } catch {}
     document.documentElement.setAttribute('lang', lang);
   }, []);
 
