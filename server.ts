@@ -321,7 +321,7 @@ app.get('/api/public/albums', async (req, res) => {
   try {
     const { search, eventType } = req.query;
     // Query published public albums using Firestore REST API
-    const runQueryUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents:runQuery`;
+    const runQueryUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${databaseId}/documents:runQuery`;
     const queryPayload = {
       structuredQuery: {
         from: [{ collectionId: 'albums' }],

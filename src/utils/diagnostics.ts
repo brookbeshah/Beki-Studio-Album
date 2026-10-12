@@ -1,8 +1,10 @@
 /**
  * Structured diagnostics and forensics logging utility for Beki's Studio.
  * Provides safe, categorized logging with high-resolution timestamps, elapsed time,
- * error correlation, and strict privacy guards (no secrets, credentials, or PII logged).
+ * error correlation, throttling to avoid flood, environment-gating, and strict privacy guards.
  */
+
+export type DiagnosticSeverity = 'info' | 'warn' | 'error' | 'fatal';
 
 export type DiagnosticCategory =
   | 'Boot'
@@ -16,6 +18,7 @@ export type DiagnosticCategory =
 
 export interface DiagnosticEvent {
   category: DiagnosticCategory;
+  severity: DiagnosticSeverity;
   name: string;
   elapsedMs: number;
   timestamp: string;
@@ -31,6 +34,8 @@ class DiagnosticManager {
   private startTime: number = typeof performance !== 'undefined' ? performance.now() : Date.now();
   private isDetailedLoggingEnabled: boolean = false;
   private readonly isDev: boolean = import.meta.env.DEV;
+  private recentLogs: Map<string, number> = new Map();
+  private readonly THROTTLE_WINDOW_MS = 1000;
 
   constructor() {
     // Check if troubleshooting mode is enabled via localStorage or query string
@@ -68,6 +73,20 @@ class DiagnosticManager {
     return Math.round((now - this.startTime) * 10) / 10;
   }
 
+  private shouldThrottle(key: string): boolean {
+    const now = Date.now();
+    const last = this.recentLogs.get(key);
+    if (last && now - last < this.THROTTLE_WINDOW_MS) {
+      return true;
+    }
+    this.recentLogs.set(key, now);
+    if (this.recentLogs.size > 200) {
+      const oldestKey = this.recentLogs.keys().next().value;
+      if (oldestKey) this.recentLogs.delete(oldestKey);
+    }
+    return false;
+  }
+
   /**
    * Log startup/bootstrap events
    */
@@ -85,14 +104,30 @@ class DiagnosticManager {
   }
 
   /**
+   * Measure and log performance metrics
+   */
+  public performance(name: string, durationMs: number, details?: Record<string, unknown>) {
+    if (this.isDebug()) {
+      const elapsed = this.getElapsedMs();
+      console.log(
+        `%c[BekiPerformance] ${name}: ${durationMs.toFixed(1)}ms (+${elapsed}ms)`,
+        'color: #38bdf8; font-weight: 500;',
+        details || ''
+      );
+    }
+  }
+
+  /**
    * Log React ErrorBoundary catches
    */
-  public errorBoundary(message: string, error: unknown, componentStack?: string) {
+  public errorBoundary(message: string, error: unknown, componentStack?: string, severity: DiagnosticSeverity = 'error') {
     const elapsed = this.getElapsedMs();
+    const prefix = severity === 'fatal' ? '[BekiErrorBoundary:FATAL]' : '[BekiErrorBoundary]';
     console.error(
-      `%c[BekiErrorBoundary] ${message} (+${elapsed}ms)`,
+      `%c${prefix} ${message} (+${elapsed}ms)`,
       'color: #e63946; font-weight: bold;',
       {
+        severity,
         error,
         componentStack,
         route: typeof window !== 'undefined' ? window.location.pathname : 'unknown',
@@ -105,30 +140,40 @@ class DiagnosticManager {
    * Log Firebase or network operations
    */
   public network(message: string, details?: Record<string, unknown>) {
-    if (this.isDebug()) {
-      const elapsed = this.getElapsedMs();
-      console.log(`%c[BekiNetwork] ${message} (+${elapsed}ms)`, 'color: #06d6a0;', details || '');
-    }
+    if (!this.isDebug()) return;
+    if (this.shouldThrottle(`net:${message}`)) return;
+
+    const elapsed = this.getElapsedMs();
+    console.log(`%c[BekiNetwork] ${message} (+${elapsed}ms)`, 'color: #06d6a0;', details || '');
   }
 
   /**
    * Log media loading diagnostics
    */
   public media(message: string, details?: Record<string, unknown>) {
-    if (this.isDebug()) {
-      const elapsed = this.getElapsedMs();
-      console.log(`%c[BekiMedia] ${message} (+${elapsed}ms)`, 'color: #118ab2;', details || '');
-    }
+    if (!this.isDebug()) return;
+    if (this.shouldThrottle(`media:${message}`)) return;
+
+    const elapsed = this.getElapsedMs();
+    console.log(`%c[BekiMedia] ${message} (+${elapsed}ms)`, 'color: #118ab2;', details || '');
   }
 
   /**
-   * Capture unexpected errors with safe formatting
+   * Capture unexpected errors with safe formatting and severity
    */
-  public captureError(category: DiagnosticCategory, message: string, error: unknown) {
+  public captureError(category: DiagnosticCategory, message: string, error: unknown, severity: DiagnosticSeverity = 'error') {
+    if (this.shouldThrottle(`err:${category}:${message}`)) return;
+
     const elapsed = this.getElapsedMs();
+    const style = severity === 'fatal' 
+      ? 'color: #ff0055; font-weight: 900; text-decoration: underline;' 
+      : severity === 'warn' 
+        ? 'color: #f59e0b; font-weight: bold;' 
+        : 'color: #e63946; font-weight: bold;';
+
     console.error(
-      `%c[Beki${category}] Error: ${message} (+${elapsed}ms)`,
-      'color: #e63946; font-weight: bold;',
+      `%c[Beki${category}][${severity.toUpperCase()}] Error: ${message} (+${elapsed}ms)`,
+      style,
       error
     );
   }
