@@ -8,6 +8,7 @@ import { QRCodeModal } from './components/admin/QRCodeModal';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { LanguageProvider } from './context/LanguageContext';
 import { Album } from './types';
+import { diagnostics } from './utils/diagnostics';
 
 // Code-split route-level bundles for blistering fast initial load
 const PublicBrowse = lazy(() =>
@@ -404,6 +405,17 @@ function AppContent() {
 }
 
 export default function App() {
+  diagnostics.app('Root component execution started');
+
+  useEffect(() => {
+    diagnostics.app('Application initialization started');
+    const timer = setTimeout(() => {
+      diagnostics.app('Initial render completed');
+      diagnostics.app('Application initialization completed');
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <ErrorBoundary>
       <LanguageProvider>

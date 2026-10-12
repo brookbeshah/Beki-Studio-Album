@@ -1,36 +1,64 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertCircle, RefreshCw, Home } from 'lucide-react';
 import { Button } from './Button';
+import { diagnostics } from '../../utils/diagnostics';
 
 interface Props {
   children: ReactNode;
+  fallbackMessage?: string;
+  onReset?: () => void;
 }
 
 interface State {
   hasError: boolean;
   error: Error | null;
+  errorInfo: ErrorInfo | null;
+  errorId: string;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
     error: null,
+    errorInfo: null,
+    errorId: '',
   };
 
-  public static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+  public static getDerivedStateFromError(error: Error): Partial<State> {
+    const errorId = `err_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
+    return {
+      hasError: true,
+      error,
+      errorId,
+    };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Beki\'s Studio Error Boundary caught an exception:', error, errorInfo);
+    this.setState({ errorInfo });
+    // Structured diagnostic capture without leaking sensitive details
+    diagnostics.errorBoundary('React rendering failure', error, errorInfo.componentStack || undefined);
   }
 
-  private handleReload = () => {
-    window.location.reload();
+  private handleReset = () => {
+    this.setState({
+      hasError: false,
+      error: null,
+      errorInfo: null,
+    });
+    if (this.props.onReset) {
+      this.props.onReset();
+    }
   };
 
   private handleGoHome = () => {
-    window.location.href = '/';
+    this.setState({
+      hasError: false,
+      error: null,
+      errorInfo: null,
+    });
+    if (typeof window !== 'undefined') {
+      window.location.href = '/';
+    }
   };
 
   public render() {
@@ -56,13 +84,17 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="w-12 h-px bg-[#C8A96B]/60 mb-4" />
 
             <p className="text-xs sm:text-sm text-[#77736B] font-light leading-relaxed mb-6">
-              An unexpected error occurred while loading this memory experience. Your data remains secure.
+              {this.props.fallbackMessage ||
+                'An unexpected error occurred while loading this memory experience. Your photos and data remain secure.'}
             </p>
 
-            {this.state.error && (
+            {diagnostics.isDebug() && this.state.error && (
               <div className="w-full mb-6 p-3 bg-[#F8F6F0] border border-[#E8E0D0] text-left rounded-xs overflow-hidden">
+                <p className="text-[10px] font-mono text-[#C8A96B] font-semibold mb-1">
+                  Reference: {this.state.errorId}
+                </p>
                 <p className="text-[11px] font-mono text-[#77736B] truncate">
-                  {this.state.error.message || 'Unknown runtime error'}
+                  {this.state.error.name}: {this.state.error.message || 'Unknown runtime error'}
                 </p>
               </div>
             )}
@@ -71,11 +103,11 @@ export class ErrorBoundary extends Component<Props, State> {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={this.handleReload}
+                onClick={this.handleReset}
                 leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
                 className="flex-1"
               >
-                Reload Page
+                Try Again
               </Button>
               <Button
                 variant="gold"
